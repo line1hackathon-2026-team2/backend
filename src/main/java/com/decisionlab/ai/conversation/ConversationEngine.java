@@ -9,5 +9,7 @@ public interface ConversationEngine {
 
     AiMessage open(UUID sessionId, PersonaCode code);
 
+    AiMessage respond(UUID sessionId, PersonaCode code, String userUtterance);
+
     String createHandoffSummary(UUID sessionId);
 }
