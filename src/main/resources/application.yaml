@@ -1,3 +1,7 @@
 spring:
   application:
     name: decisionlab
+
+decisionlab:
+  session:
+    ttl: 7d
