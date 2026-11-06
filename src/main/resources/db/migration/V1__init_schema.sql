@@ -1,5 +1,4 @@
--- 전체 엔티티 기준 초기 스키마 (12개 테이블, FK 충돌 방지를 위해 한 번에 생성)
--- 담당: A / 초안 작성: B (DDL이 비어있어 로컬 실행이 막혀 있어서 임시로 뽑음, A 리뷰 후 조정 필요)
+-- 전체 엔티티 기준 초기 스키마
 
 -- A: 세션 · 상태 전이 · 공통
 CREATE TABLE sessions (
@@ -116,7 +115,6 @@ CREATE TABLE dilemmas (
     created_at          DATETIME(6)     NOT NULL,
     updated_at          DATETIME(6)     NOT NULL,
     PRIMARY KEY (id),
-    -- 딜레마는 세션당 1개(README 결정 사항) -> DB 레벨에서도 강제. A/C 리뷰에서 맞는지 확인 필요
     UNIQUE KEY uk_dilemmas_session_id (session_id),
     KEY idx_dilemmas_decision_id (decision_id),
     CONSTRAINT fk_dilemmas_session FOREIGN KEY (session_id) REFERENCES sessions (id),
@@ -130,7 +128,8 @@ CREATE TABLE dilemma_templates (
     verification_goal   VARCHAR(300)    NOT NULL,
     created_at          DATETIME(6)     NOT NULL,
     updated_at          DATETIME(6)     NOT NULL,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_dilemma_templates_type (dilemma_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE dilemma_responses (
@@ -163,7 +162,7 @@ CREATE TABLE reports (
     created_at          DATETIME(6)     NOT NULL,
     updated_at          DATETIME(6)     NOT NULL,
     PRIMARY KEY (id),
-    KEY idx_reports_session_id (session_id),
+    UNIQUE KEY uk_reports_session_id (session_id),
     CONSTRAINT fk_reports_session FOREIGN KEY (session_id) REFERENCES sessions (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
