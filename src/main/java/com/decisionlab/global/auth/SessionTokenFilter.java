@@ -4,12 +4,15 @@ import com.decisionlab.global.error.ApiException;
 import com.decisionlab.global.error.ErrorCode;
 import com.decisionlab.session.entity.Session;
 import com.decisionlab.session.repository.SessionRepository;
+import com.decisionlab.session.service.SessionService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,9 +28,16 @@ public class SessionTokenFilter extends OncePerRequestFilter {
     private static final List<String> NO_TOKEN_PREFIXES = List.of("/swagger-ui", "/v3/api-docs");
 
     private final SessionRepository sessionRepository;
+    private final SessionService sessionService;
+    // 필터 예외는 @RestControllerAdvice까지 가지 않으므로, 리졸버에 넘겨 GlobalExceptionHandler가 처리하게 한다.
+    private final HandlerExceptionResolver exceptionResolver;
 
-    public SessionTokenFilter(SessionRepository sessionRepository) {
+    public SessionTokenFilter(SessionRepository sessionRepository,
+                              SessionService sessionService,
+                              @Qualifier("handlerExceptionResolver") HandlerExceptionResolver exceptionResolver) {
         this.sessionRepository = sessionRepository;
+        this.sessionService = sessionService;
+        this.exceptionResolver = exceptionResolver;
     }
 
     @Override
@@ -50,6 +60,26 @@ public class SessionTokenFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        Session session;
+        try {
+            session = authenticate(request);
+        } catch (ApiException e) {
+            exceptionResolver.resolveException(request, response, null, e);
+            return;
+        }
+
+        // 만료 기간은 마지막 접속 + 7일
+        sessionService.renewExpiry(session.getId(), session.getExpiresAt());
+
+        try {
+            SessionContext.setSessionId(session.getId());
+            filterChain.doFilter(request, response);
+        } finally {
+            SessionContext.clear();
+        }
+    }
+
+    private Session authenticate(HttpServletRequest request) {
         String token = request.getHeader(SESSION_TOKEN_HEADER);
         if (token == null || token.isBlank()) {
             throw new ApiException(ErrorCode.UNAUTHORIZED, "세션 토큰이 없습니다.");
@@ -66,13 +96,7 @@ public class SessionTokenFilter extends OncePerRequestFilter {
         if (pathSessionId != null && !pathSessionId.equals(session.getId())) {
             throw new ApiException(ErrorCode.FORBIDDEN, "다른 세션에는 접근할 수 없습니다.");
         }
-
-        try {
-            SessionContext.setSessionId(session.getId());
-            filterChain.doFilter(request, response);
-        } finally {
-            SessionContext.clear();
-        }
+        return session;
     }
 
     private UUID extractSessionIdFromPath(String path) {
