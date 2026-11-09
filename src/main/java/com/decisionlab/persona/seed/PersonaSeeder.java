@@ -45,7 +45,7 @@ public class PersonaSeeder implements ApplicationRunner {
             case STABILITY -> persona(code,
                     "안정의 나",
                     "경제, 시간, 위험",
-                    "그 선택에 너에게 안정적인 일상을 가져다줄까?",
+                    "그 선택이 너에게 안정적인 일상을 가져다줄까?",
                     "#E8F9DF");
             case EXPLORATION -> persona(code,
                     "탐색의 나",
