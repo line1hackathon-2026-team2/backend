@@ -1,0 +1,192 @@
+package com.decisionlab.chat.decision.service;
+
+import com.decisionlab.ai.dilemma.DilemmaGenerator;
+import com.decisionlab.ai.report.ReportGenerator;
+import com.decisionlab.chat.criterion.entity.JudgmentCriterion;
+import com.decisionlab.chat.criterion.repository.JudgmentCriterionRepository;
+import com.decisionlab.chat.decision.dto.ResolveRequest;
+import com.decisionlab.chat.decision.dto.ResolveResponse;
+import com.decisionlab.chat.decision.entity.DecisionAction;
+import com.decisionlab.chat.decision.entity.ProvisionalDecision;
+import com.decisionlab.chat.decision.repository.ProvisionalDecisionRepository;
+import com.decisionlab.dilemma.dto.DilemmaResult;
+import com.decisionlab.dilemma.entity.Dilemma;
+import com.decisionlab.dilemma.entity.DilemmaChoice;
+import com.decisionlab.dilemma.entity.DilemmaResponse;
+import com.decisionlab.dilemma.entity.DilemmaType;
+import com.decisionlab.dilemma.repository.DilemmaRepository;
+import com.decisionlab.dilemma.repository.DilemmaResponseRepository;
+import com.decisionlab.global.error.ApiException;
+import com.decisionlab.global.error.ErrorCode;
+import com.decisionlab.report.dto.ReportResult;
+import com.decisionlab.report.entity.EntryPoint;
+import com.decisionlab.report.entity.ReportType;
+import com.decisionlab.session.entity.SessionState;
+import com.decisionlab.session.service.SessionStateService;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.lang.reflect.Field;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
+@ExtendWith(MockitoExtension.class)
+class DecisionServiceTest {
+
+    @Mock
+    SessionStateService sessionStateService;
+
+    @Mock
+    ProvisionalDecisionRepository provisionalDecisionRepository;
+
+    @Mock
+    JudgmentCriterionRepository judgmentCriterionRepository;
+
+    @Mock
+    DilemmaGenerator dilemmaGenerator;
+
+    @Mock
+    ReportGenerator reportGenerator;
+
+    @Mock
+    DilemmaRepository dilemmaRepository;
+
+    @Mock
+    DilemmaResponseRepository dilemmaResponseRepository;
+
+    @InjectMocks
+    DecisionService decisionService;
+
+    UUID sessionId = UUID.randomUUID();
+    Long decisionId = 10L;
+
+    private ProvisionalDecision decision() throws Exception {
+        ProvisionalDecision decision = ProvisionalDecision.builder()
+                .sessionId(sessionId)
+                .revisionNo(1)
+                .summaryText("요약")
+                .build();
+        setId(decision, decisionId);
+        return decision;
+    }
+
+    @Test
+    void resolve_approve_firstTime_generatesDilemmaAndTransitionsToDilemma() throws Exception {
+        given(provisionalDecisionRepository.findById(decisionId)).willReturn(Optional.of(decision()));
+        given(dilemmaRepository.findBySessionId(sessionId)).willReturn(Optional.empty());
+        DilemmaResult dilemmaResult = new DilemmaResult(1L, DilemmaType.ALT_PATH, "시나리오", "검증 목표", false);
+        given(dilemmaGenerator.generate(sessionId, decisionId)).willReturn(dilemmaResult);
+
+        ResolveResponse response = decisionService.resolve(sessionId, decisionId, new ResolveRequest(DecisionAction.APPROVE));
+
+        verify(sessionStateService).requireState(sessionId, SessionState.PROVISIONAL_DECISION);
+        verify(sessionStateService).transition(sessionId, SessionState.DILEMMA);
+        verify(reportGenerator, never()).generate(any(), any(), any());
+        assertThat(response.state()).isEqualTo(SessionState.DILEMMA);
+        assertThat(response.dilemma().dilemmaId()).isEqualTo("1");
+        assertThat(response.dilemma().scenarioText()).isEqualTo("시나리오");
+        assertThat(response.reportId()).isNull();
+    }
+
+    @Test
+    void resolve_approve_afterReconsider_skipsDilemmaAndGoesToReport() throws Exception {
+        given(provisionalDecisionRepository.findById(decisionId)).willReturn(Optional.of(decision()));
+        Dilemma dilemma = Dilemma.builder()
+                .sessionId(sessionId)
+                .decisionId(1L)
+                .dilemmaType(DilemmaType.ALT_PATH)
+                .scenarioText("시나리오")
+                .verificationGoal("목표")
+                .fallback(false)
+                .build();
+        setId(dilemma, 5L);
+        given(dilemmaRepository.findBySessionId(sessionId)).willReturn(Optional.of(dilemma));
+        DilemmaResponse reconsiderResponse = DilemmaResponse.builder()
+                .dilemmaId(5L)
+                .choice(DilemmaChoice.RECONSIDER)
+                .build();
+        given(dilemmaResponseRepository.findByDilemmaId(5L)).willReturn(Optional.of(reconsiderResponse));
+        given(reportGenerator.generate(sessionId, ReportType.REPORT, EntryPoint.S05))
+                .willReturn(reportResult(99L));
+
+        ResolveResponse response = decisionService.resolve(sessionId, decisionId, new ResolveRequest(DecisionAction.APPROVE));
+
+        verify(sessionStateService).transition(sessionId, SessionState.REPORT);
+        verify(dilemmaGenerator, never()).generate(any(), any());
+        assertThat(response.state()).isEqualTo(SessionState.REPORT);
+        assertThat(response.reportId()).isEqualTo("99");
+        assertThat(response.dilemma()).isNull();
+    }
+
+    @Test
+    void resolve_revise_deletesDecisionAndCriteriaThenGoesToExploring() throws Exception {
+        ProvisionalDecision decision = decision();
+        given(provisionalDecisionRepository.findById(decisionId)).willReturn(Optional.of(decision));
+        JudgmentCriterion criterion = JudgmentCriterion.builder()
+                .sessionId(sessionId)
+                .decisionId(decisionId)
+                .category("VALUE")
+                .content("연구 전문성")
+                .source(com.decisionlab.chat.criterion.entity.CriterionSource.USER_STATED)
+                .build();
+        given(judgmentCriterionRepository.findByDecisionId(decisionId)).willReturn(List.of(criterion));
+
+        ResolveResponse response = decisionService.resolve(sessionId, decisionId, new ResolveRequest(DecisionAction.REVISE));
+
+        verify(judgmentCriterionRepository).deleteAll(List.of(criterion));
+        verify(provisionalDecisionRepository).delete(decision);
+        verify(sessionStateService).transition(sessionId, SessionState.EXPLORING);
+        assertThat(response.state()).isEqualTo(SessionState.EXPLORING);
+    }
+
+    @Test
+    void resolve_undecided_generatesUndecidedReportAndGoesToReport() throws Exception {
+        given(provisionalDecisionRepository.findById(decisionId)).willReturn(Optional.of(decision()));
+        given(reportGenerator.generate(sessionId, ReportType.UNDECIDED_REPORT, EntryPoint.S05))
+                .willReturn(reportResult(77L));
+
+        ResolveResponse response = decisionService.resolve(sessionId, decisionId, new ResolveRequest(DecisionAction.UNDECIDED));
+
+        verify(sessionStateService).transition(sessionId, SessionState.REPORT);
+        assertThat(response.reportId()).isEqualTo("77");
+    }
+
+    @Test
+    void resolve_withDecisionFromAnotherSession_throwsNotFound() throws Exception {
+        ProvisionalDecision decision = ProvisionalDecision.builder()
+                .sessionId(UUID.randomUUID())
+                .revisionNo(1)
+                .summaryText("요약")
+                .build();
+        setId(decision, decisionId);
+        given(provisionalDecisionRepository.findById(decisionId)).willReturn(Optional.of(decision));
+
+        assertThatThrownBy(() -> decisionService.resolve(sessionId, decisionId, new ResolveRequest(DecisionAction.APPROVE)))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    private ReportResult reportResult(Long reportId) {
+        return new ReportResult(reportId, ReportType.REPORT, EntryPoint.S05, "요약", null, null, null, null, null,
+                null, null, List.of(), "고지", LocalDateTime.now());
+    }
+
+    private void setId(Object entity, Long id) throws Exception {
+        Field field = entity.getClass().getDeclaredField("id");
+        field.setAccessible(true);
+        field.set(entity, id);
+    }
+}
