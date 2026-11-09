@@ -11,7 +11,7 @@
 | Content-Type | `application/json` (UTF-8) |
 | 시간 | ISO 8601 (`2026-11-02T21:00:00+09:00`) |
 | 미확인 값 | 사용자가 밝히지 않은 항목은 추정하지 않고 문자열 `"unknown"` |
-| 소유권 | 토큰의 세션과 `{sessionId}`가 다르면 403. 단, `GET /reports/{reportId}`(4.16)는 저장된 리포트를 누구나 조회할 수 있는 공개 엔드포인트라 이 규칙을 적용하지 않음 |
+| 소유권 | 토큰의 세션과 `{sessionId}`가 다르면 403. 단, `GET /reports/{reportId}`(4.15)는 누구나 조회할 수 있는 공개 엔드포인트라 이 규칙을 적용하지 않음 |
 | ID 형식 | `sessionId`만 UUID 문자열(예: `b7e1c2a0-...`), 그 외 ID(`concernId`, `decisionId`, `criterionId`, `dilemmaId`, `reportId` 등)는 숫자 문자열(Long) |
 | LLM 호출 | 동기 응답, 서버 타임아웃 30초, 재시도 최대 2회, 실패 시 502 `LLM_FAILED` (딜레마는 템플릿 폴백) |
 | 동시 요청 | 같은 세션의 동시 요청은 상태 검증으로 막고, 허용되지 않는 상태면 409 |
@@ -94,10 +94,9 @@
 | 12 | PUT | `/sessions/{sessionId}/dilemma/followup` | S07, S08 | 유지 이유 / 흔들린 가치 입력 | P0 |
 | 13 | POST | `/sessions/{sessionId}/end` | O2 | 그만 대화하기 | P0 |
 | 14 | GET | `/sessions/{sessionId}/report` | S09 | 리포트 조회 | P0 |
-| 15 | POST | `/sessions/{sessionId}/report/{reportId}/save` | S09 | 리포트 영구 저장 | P1 |
-| 16 | GET | `/reports/{reportId}` | S09, S10 | 저장된 리포트 공개 조회(세션 무관) | P1 |
-| 17 | POST | `/sessions/{sessionId}/reopen` | S09, S09-U, S09-I | 리포트에서 대화 재개 | P1 |
-| 18 | POST | `/sessions/resume` | S01, S10 | 저장 세션 이어하기 | P1 |
+| 15 | GET | `/reports/{reportId}` | S09, S09-U, S09-I, S10 | 리포트 공개 조회(세션 무관) | P1 |
+| 16 | POST | `/sessions/{sessionId}/reopen` | S09, S09-U, S09-I | 리포트에서 대화 재개 | P1 |
+| 17 | POST | `/sessions/resume` | S01, S10 | 저장 세션 이어하기 | P1 |
 
 ## 4. 상세 명세
 
@@ -376,7 +375,7 @@ Response `200`
 
 ### 4.14 리포트 조회 `GET /sessions/{sessionId}/report` (S09, F07)
 
-리포트 유형별로 값이 다르며, 해당 없는 항목은 `null`, 사용자가 밝히지 않은 항목은 `"unknown"`. `reports.session_id`는 UNIQUE라 세션당 리포트는 하나뿐이다. 재개(4.17) 후 리포트를 다시 만들어도 같은 `reportId`를 유지한 채 내용만 갱신된다.
+리포트 유형별로 값이 다르며, 해당 없는 항목은 `null`, 사용자가 밝히지 않은 항목은 `"unknown"`. `reports.session_id`는 UNIQUE라 세션당 리포트는 하나뿐이다. 재개(4.16) 후 리포트를 다시 만들어도 같은 `reportId`를 유지한 채 내용만 갱신된다.
 
 Response `200` (REPORT)
 ```json
@@ -411,31 +410,17 @@ Response `200` (REPORT)
 | missingInfo | O | O | O (확인하지 못한 항목) |
 | nextActions | O | O | 선택 |
 
-### 4.15 리포트 영구 저장 `POST /sessions/{sessionId}/report/{reportId}/save` (S09, S09-U, S09-I)
+### 4.15 리포트 공개 조회 `GET /reports/{reportId}` (S09, S09-U, S09-I, S10)
 
-"리포트 저장하기" 클릭 시 호출. 호출 시점의 리포트 내용을 별도 저장본(스냅샷)으로 복사해 보관한다. 원본 `reports` 행은 `session_id` UNIQUE 제약 때문에 재개(4.17) 후 계속 덮어써지지만, 저장본은 그 영향을 받지 않고 저장 시점 내용 그대로 남는다.
+"리포트 저장하기" 클릭 시 프론트가 안내하는 영구 링크. 새로 저장하는 API 호출은 없고, 4.14가 돌려준 `reportId`를 그대로 사용해 `X-Session-Token` 없이 조회한다. 존재하지 않는 `reportId`는 `404 NOT_FOUND`.
 
-Request: body 없음
+Response `200`: 4.14와 동일한 리포트 필드 구조.
 
-Response `201`
-```json
-{
-  "reportId": "...",
-  "savedAt": "2026-11-09T21:35:00+09:00",
-  "publicUrl": "/api/v1/reports/..."
-}
-```
-여기서 `reportId`는 저장본 자체의 ID로, 4.14가 돌려주는 원본 리포트의 `reportId`와는 다른 값이다(별도 식별자 공간). 세션이 만료(7일)되어 원본 리포트 행이 함께 사라져도 저장본은 영향받지 않으며, 세션 만료와 무관하게 **90일** 보관한다.
+`reports.session_id`는 UNIQUE라 세션당 리포트가 하나뿐이고, 재개(4.16) 후 리포트가 갱신되면 이 링크로 보이는 내용도 함께 바뀐다 — 저장 시점에 고정되는 스냅샷이 아니라 최신 상태를 가리키는 영구 링크다. 세션이 만료(7일)돼도 `reports` 행은 삭제되지 않으므로 계속 조회된다.
 
-### 4.16 저장된 리포트 공개 조회 `GET /reports/{reportId}` (S09, S10)
+로그인이 없는 서비스 특성상 `reportId`를 아는 사람은 누구나 리포트를 볼 수 있다. 민감한 실명·개인정보를 넣지 말라는 기존 안내(S01)로 위험을 완화한다.
 
-4.15가 돌려준 저장본 `reportId`로 조회한다(원본 리포트의 `reportId`로는 조회되지 않음). `X-Session-Token` 없이 호출 가능. 저장되지 않았거나 보관 기간이 지난 `reportId`는 `404 NOT_FOUND`.
-
-Response `200`: 4.14와 동일한 리포트 필드 구조(저장 시점 스냅샷이라 이후 원본이 바뀌어도 갱신되지 않음).
-
-로그인이 없는 서비스 특성상 `reportId`를 아는 사람은 누구나 저장본을 볼 수 있다. 민감한 실명·개인정보를 넣지 말라는 기존 안내(S01)로 위험을 완화한다.
-
-### 4.17 대화 재개 `POST /sessions/{sessionId}/reopen` (S09, S09-U, S09-I)
+### 4.16 대화 재개 `POST /sessions/{sessionId}/reopen` (S09, S09-U, S09-I)
 
 리포트 화면의 "더 이야기해 볼래요" / "이전 대화 이어가기"에서 호출. 대화 이력과 지금까지의 판단 기준(`criteria`)은 그대로 유지한 채 상태만 되돌린다.
 
@@ -450,9 +435,9 @@ Response `200`: `{ "state": "EXPLORING" }`
 | REPORT (딜레마 있음) | 이후 `decision/draft`로 새 리비전을 만들 수 있고, `resolve APPROVE`는 재검토 후와 동일하게(reconsiderCount ≥ 1 취급) 딜레마 재생성 없이 바로 REPORT로 간다 |
 | UNDECIDED_REPORT / INCOMPLETE_REPORT (딜레마 없음) | 이후 `resolve APPROVE`는 처음과 동일하게 딜레마를 새로 생성한다 |
 
-`reports.session_id`가 UNIQUE라 재개 후 다시 만든 리포트는 새 `reportId`를 생성하지 않고 기존 행(`reportId`, `reportType`, 본문 필드)을 덮어쓴다. 4.14는 같은 `reportId`로 갱신된 최신 내용을 반환한다.
+`reports.session_id`가 UNIQUE라 재개 후 다시 만든 리포트는 새 `reportId`를 생성하지 않고 기존 행(`reportId`, `reportType`, 본문 필드)을 덮어쓴다. 4.14와 4.15는 같은 `reportId`로 갱신된 최신 내용을 반환한다.
 
-### 4.18 이어하기 `POST /sessions/resume` (P1, F08)
+### 4.17 이어하기 `POST /sessions/resume` (P1, F08)
 
 `resumeCode` 형식은 `XXXX-9999`(대문자 4자 + 숫자 4자)이며 세션 만료 전까지 유효하다.
 
@@ -467,7 +452,7 @@ Response `200`: `{ "sessionId": "...", "sessionToken": "...", "state": "PAUSED" 
 | Conversation Engine | 4.5 persona, 4.6 messages | 고민, 대화 이력, personaCode | 질문 1개, 선택지 2~3개 |
 | Decision Extractor | 4.8 decision/draft | 대화 이력 | decision fields, criteria (unknown 허용) |
 | Dilemma Generator | 4.10 resolve(APPROVE, reconsiderCount = 0) | 승인된 결정, 핵심 기준 | title, scenarioText, dilemmaType, verificationGoal |
-| Report Generator | 4.10(UNDECIDED, 재검토 후 APPROVE), 4.11(UNDECIDED), 4.12, 4.13, 4.17(재개 후 재생성) | reportType, 전체 기록 | 유형별 리포트 항목 |
+| Report Generator | 4.10(UNDECIDED, 재검토 후 APPROVE), 4.11(UNDECIDED), 4.12, 4.13, 4.16(재개 후 재생성) | reportType, 전체 기록 | 유형별 리포트 항목 |
 
 ## 6. 결정 사항
 
@@ -482,6 +467,6 @@ Response `200`: `{ "sessionId": "...", "sessionToken": "...", "state": "PAUSED" 
 | 새 탭/동시 접속 | 같은 토큰이면 같은 세션 허용, 동시 요청은 상태 검증으로 409 |
 | 잠정 결정 필드 수정 | S05에서 연필 아이콘으로 필드 단위 수정 가능(4.9, PATCH). `revisionNo`는 유지, `summaryText`는 재생성하지 않음 |
 | 딜레마 제목 | `scenarioText`와 별도로 `title`을 Dilemma Generator가 함께 생성(4.10) |
-| `reports.session_id` | UNIQUE. 세션당 리포트는 하나만 존재하고, 재개(4.17) 후 다시 생성해도 같은 `reportId`로 덮어쓴다 |
-| 리포트 영구 저장 | save(4.15) 시점에 별도 저장본(스냅샷)으로 복사. 원본은 계속 갱신되지만 저장본은 불변이며 자체 `reportId`로 4.16 조회. 세션 만료와 무관하게 90일 보관. 비로그인 서비스라 `reportId`를 아는 사람은 누구나 조회 가능 |
-| 리포트에서 대화 재개 | S09/S09-U/S09-I에서 `POST reopen`(4.17)으로 EXPLORING 복귀 가능. 기존 딜레마 유무에 따라 이후 흐름이 갈림 |
+| `reports.session_id` | UNIQUE(기존 V1 제약 유지). 세션당 리포트는 하나만 존재하고, 재개(4.16) 후 다시 생성해도 같은 `reportId`로 덮어쓴다 |
+| 리포트 영구 저장 | 별도 저장 API나 스냅샷 테이블 없음. 4.14가 돌려준 `reportId`가 곧 영구 링크(4.15)이고, `X-Session-Token` 없이 조회 가능. 재개로 리포트가 갱신되면 이 링크의 내용도 함께 바뀜(스냅샷 고정 아님). 세션 만료와 무관하게 리포트 행은 유지됨. 비로그인 서비스라 `reportId`를 아는 사람은 누구나 조회 가능 |
+| 리포트에서 대화 재개 | S09/S09-U/S09-I에서 `POST reopen`(4.16)으로 EXPLORING 복귀 가능. 기존 딜레마 유무에 따라 이후 흐름이 갈림 |
