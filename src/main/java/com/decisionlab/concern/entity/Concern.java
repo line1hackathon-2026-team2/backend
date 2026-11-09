@@ -30,7 +30,7 @@ public class Concern extends BaseTimeEntity {
     private Long id;
 
     @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "session_id", nullable = false, length = 36)
+    @Column(name = "session_id", nullable = false, unique = true, length = 36)
     private UUID sessionId;
 
     @Column(name = "free_text", nullable = false, length = 1000)

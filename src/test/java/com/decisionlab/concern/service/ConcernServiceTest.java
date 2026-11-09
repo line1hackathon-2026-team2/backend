@@ -11,6 +11,7 @@ import com.decisionlab.session.entity.SessionState;
 import com.decisionlab.session.service.SessionStateService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -40,10 +41,10 @@ class ConcernServiceTest {
 
     private Concern saveNewAndCapture(ConcernRequest request) {
         when(concernRepository.findBySessionId(sessionId)).thenReturn(Optional.empty());
-        when(concernRepository.save(any(Concern.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(concernRepository.saveAndFlush(any(Concern.class))).thenAnswer(inv -> inv.getArgument(0));
         concernService.saveConcern(sessionId, request);
         ArgumentCaptor<Concern> captor = ArgumentCaptor.forClass(Concern.class);
-        verify(concernRepository).save(captor.capture());
+        verify(concernRepository).saveAndFlush(captor.capture());
         return captor.getValue();
     }
 
@@ -51,13 +52,13 @@ class ConcernServiceTest {
         assertThatThrownBy(() -> concernService.saveConcern(sessionId, request))
                 .isInstanceOf(ApiException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.VALIDATION_ERROR);
-        verify(concernRepository, never()).save(any());
+        verify(concernRepository, never()).saveAndFlush(any());
     }
 
     @Test
     void 처음_입력하면_모든_필드를_저장하고_concernId를_문자열로_돌려준다() {
         when(concernRepository.findBySessionId(sessionId)).thenReturn(Optional.empty());
-        when(concernRepository.save(any(Concern.class))).thenAnswer(inv -> {
+        when(concernRepository.saveAndFlush(any(Concern.class))).thenAnswer(inv -> {
             Concern saved = inv.getArgument(0);
             ReflectionTestUtils.setField(saved, "id", 7L);
             return saved;
@@ -67,7 +68,7 @@ class ConcernServiceTest {
                 request(List.of("취업", "대학원 진학"), "취업", "전문성을 더 키우고 싶어"));
 
         ArgumentCaptor<Concern> captor = ArgumentCaptor.forClass(Concern.class);
-        verify(concernRepository).save(captor.capture());
+        verify(concernRepository).saveAndFlush(captor.capture());
         Concern saved = captor.getValue();
         assertThat(saved.getSessionId()).isEqualTo(sessionId);
         assertThat(saved.getConcernType()).isEqualTo(ConcernType.CAREER);
@@ -91,7 +92,7 @@ class ConcernServiceTest {
         ConcernResponse response = concernService.saveConcern(sessionId,
                 new ConcernRequest("새 고민", ConcernType.MAJOR, null, null, null));
 
-        verify(concernRepository, never()).save(any());
+        verify(concernRepository, never()).saveAndFlush(any());
         assertThat(existing.getFreeText()).isEqualTo("새 고민");
         assertThat(existing.getConcernType()).isEqualTo(ConcernType.MAJOR);
         assertThat(existing.getOptions()).isNull();
@@ -150,6 +151,21 @@ class ConcernServiceTest {
     }
 
     @Test
+    void 첫_입력이_동시에_들어와_UNIQUE_위반이면_409() {
+        when(concernRepository.findBySessionId(sessionId)).thenReturn(Optional.empty());
+        when(concernRepository.saveAndFlush(any(Concern.class)))
+                .thenThrow(new DataIntegrityViolationException("Duplicate entry for key 'uk_concerns_session_id'"));
+
+        assertThatThrownBy(() -> concernService.saveConcern(sessionId, request(null, null, null)))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> {
+                    ApiException api = (ApiException) e;
+                    assertThat(api.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE_TRANSITION);
+                    assertThat(api.getCurrentState()).isEqualTo("CREATED");
+                });
+    }
+
+    @Test
     void CREATED가_아니면_409이고_저장하지_않는다() {
         doThrow(new ApiException(ErrorCode.INVALID_STATE_TRANSITION, "불가", "EXPLORING"))
                 .when(sessionStateService).requireState(sessionId, SessionState.CREATED);
@@ -159,6 +175,6 @@ class ConcernServiceTest {
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_STATE_TRANSITION);
 
         verify(concernRepository, never()).findBySessionId(any());
-        verify(concernRepository, never()).save(any());
+        verify(concernRepository, never()).saveAndFlush(any());
     }
 }

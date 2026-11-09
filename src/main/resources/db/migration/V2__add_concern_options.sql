@@ -2,3 +2,8 @@
 ALTER TABLE concerns
     ADD COLUMN options                   JSON         NULL AFTER concern_type,
     ADD COLUMN initial_preference_reason VARCHAR(100) NULL AFTER initial_preference;
+
+-- 고민은 세션당 1개 (ConcernRepository.findBySessionId 단건 조회와 맞춘다)
+ALTER TABLE concerns
+    ADD UNIQUE KEY uk_concerns_session_id (session_id);
+

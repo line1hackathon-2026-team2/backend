@@ -8,6 +8,7 @@ import com.decisionlab.global.error.ApiException;
 import com.decisionlab.global.error.ErrorCode;
 import com.decisionlab.session.entity.SessionState;
 import com.decisionlab.session.service.SessionStateService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,7 +47,7 @@ public class ConcernService {
                     existing.update(request.freeText(), request.concernType(), options, initialPreference, reason);
                     return existing;
                 })
-                .orElseGet(() -> concernRepository.save(Concern.builder()
+                .orElseGet(() -> insert(Concern.builder()
                         .sessionId(sessionId)
                         .freeText(request.freeText())
                         .concernType(request.concernType())
@@ -56,6 +57,16 @@ public class ConcernService {
                         .build()));
 
         return ConcernResponse.of(SessionState.CREATED, concern.getId());
+    }
+
+    // 같은 세션의 첫 입력이 동시에 두 번 오면 UNIQUE(session_id) 위반이 난다. 500 대신 409로 알려 다시 시도하게 한다.
+    private Concern insert(Concern concern) {
+        try {
+            return concernRepository.saveAndFlush(concern);
+        } catch (DataIntegrityViolationException e) {
+            throw new ApiException(ErrorCode.INVALID_STATE_TRANSITION,
+                    "같은 세션에 고민 저장 요청이 동시에 들어왔습니다. 다시 시도해 주세요.", SessionState.CREATED.name());
+        }
     }
 
     // 선택지는 선택사항이지만, 입력한다면 2~3개이고 서로 달라야 한다. 빈 목록은 "입력 안 함"으로 본다.
