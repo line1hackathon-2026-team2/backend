@@ -7,6 +7,7 @@ import com.decisionlab.report.entity.ReportAction;
 import com.decisionlab.report.entity.ReportType;
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -73,6 +74,8 @@ public record ReportResponse(
                 ? List.of()
                 : actions.stream().map(NextActionItem::from).toList();
 
+        LocalDateTime timestamp = report.getUpdatedAt() != null ? report.getUpdatedAt() : report.getCreatedAt();
+
         return new ReportResponse(
                 report.getId() != null ? String.valueOf(report.getId()) : null,
                 report.getReportType(),
@@ -90,7 +93,7 @@ public record ReportResponse(
                 report.getMissingInfo(),
                 actionItems,
                 report.getDisclaimer(),
-                ApiTime.toKst(report.getCreatedAt())
+                ApiTime.toKst(timestamp)
         );
     }
 

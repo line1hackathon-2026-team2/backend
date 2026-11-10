@@ -27,19 +27,41 @@ public class StubReportGenerator implements ReportGenerator {
     @Override
     @Transactional
     public ReportResult generate(UUID sessionId, ReportType type, EntryPoint entry) {
-        Report report = reportRepository.findBySessionId(sessionId)
-                .orElseGet(() -> createStubReport(sessionId, type, entry));
+        Report stub = buildStubReport(sessionId, type, entry);
 
-        List<ReportAction> actions = reportActionRepository.findByReportIdOrderBySeqAsc(report.getId());
-        if (actions.isEmpty()) {
-            actions = createStubActions(report.getId(), type);
-        }
+        Report report = reportRepository.findBySessionId(sessionId)
+                .map(existing -> {
+                    existing.update(
+                            stub.getReportType(),
+                            stub.getEntryPoint(),
+                            stub.getConcernSummary(),
+                            stub.getInitialView(),
+                            stub.getInitialViewReason(),
+                            stub.getRevisedView(),
+                            stub.getRevisedViewReason(),
+                            stub.getGuidingValues(),
+                            stub.getShakingSituation(),
+                            stub.getShakingSituationDetail(),
+                            stub.getClarifiedCriteria(),
+                            stub.getUndecidedReason(),
+                            stub.getMissingInfo(),
+                            stub.getDisclaimer()
+                    );
+                    Report updated = reportRepository.saveAndFlush(existing);
+                    reportActionRepository.deleteByReportId(updated.getId());
+                    return updated;
+                })
+                .orElseGet(() -> reportRepository.save(stub));
+
+        List<ReportAction> actions = createStubActions(report.getId(), type);
 
         List<ReportResult.NextAction> nextActions = actions.stream()
                 .map(action -> new ReportResult.NextAction(action.getSeq(), action.getContent()))
                 .toList();
 
-        LocalDateTime generatedAt = report.getCreatedAt() != null ? report.getCreatedAt() : LocalDateTime.now();
+        LocalDateTime generatedAt = report.getUpdatedAt() != null
+                ? report.getUpdatedAt()
+                : (report.getCreatedAt() != null ? report.getCreatedAt() : LocalDateTime.now());
 
         return new ReportResult(
                 report.getId(),
@@ -62,8 +84,8 @@ public class StubReportGenerator implements ReportGenerator {
         );
     }
 
-    private Report createStubReport(UUID sessionId, ReportType type, EntryPoint entry) {
-        Report report = switch (type) {
+    private Report buildStubReport(UUID sessionId, ReportType type, EntryPoint entry) {
+        return switch (type) {
             case REPORT -> Report.builder()
                     .sessionId(sessionId)
                     .reportType(ReportType.REPORT)
@@ -120,8 +142,6 @@ public class StubReportGenerator implements ReportGenerator {
                     .disclaimer(DEFAULT_DISCLAIMER)
                     .build();
         };
-
-        return reportRepository.save(report);
     }
 
     private List<ReportAction> createStubActions(Long reportId, ReportType type) {
