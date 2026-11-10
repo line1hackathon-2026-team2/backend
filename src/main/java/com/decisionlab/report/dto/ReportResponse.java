@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-/** 명세서 4.13 리포트 조회 응답 */
+/** 명세서 4.14 리포트 조회 응답 */
 public record ReportResponse(
         @Schema(description = "리포트 ID (숫자 문자열)", example = "1")
         String reportId,
@@ -27,15 +27,26 @@ public record ReportResponse(
         @Schema(description = "초기 관점 (REPORT만 존재, 나머지는 null)", example = "대학원에 가고 싶다")
         String initialView,
 
+        @Schema(description = "초기 관점 이유 (REPORT만 존재, 나머지는 null)", example = "전문성을 키우고 싶다")
+        String initialViewReason,
+
         @Schema(description = "수정/유지된 최종 관점 (REPORT만 존재, 나머지는 null)",
                 example = "대학원 진학을 유지하되, 연구실 인턴으로 먼저 적합성을 확인한다")
         String revisedView,
+
+        @Schema(description = "최종 관점 이유 (REPORT만 존재, 나머지는 null)",
+                example = "연구실 인턴으로 적합성부터 확인")
+        String revisedViewReason,
 
         @Schema(description = "핵심 판단 가치/기준", example = "연구 전문성")
         String guidingValues,
 
         @Schema(description = "흔들렸던 가상 딜레마 상황", example = "희망 기업의 연구개발 직무 제안")
         String shakingSituation,
+
+        @Schema(description = "흔들렸던 상황 상세 설명",
+                example = "대학원 이외의 경로에서도 연구 역량을 쌓을 수 있다는 가능성을 고려하게 되었어요")
+        String shakingSituationDetail,
 
         @Schema(description = "명확해진 판단 기준 (REPORT만 존재, 나머지는 null)",
                 example = "학위보다 체계적인 연구 방법 습득이 중요함")
@@ -68,9 +79,12 @@ public record ReportResponse(
                 report.getEntryPoint(),
                 report.getConcernSummary(),
                 report.getInitialView(),
+                report.getInitialViewReason(),
                 report.getRevisedView(),
+                report.getRevisedViewReason(),
                 report.getGuidingValues(),
                 report.getShakingSituation(),
+                report.getShakingSituationDetail(),
                 report.getClarifiedCriteria(),
                 report.getUndecidedReason(),
                 report.getMissingInfo(),

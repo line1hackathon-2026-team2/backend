@@ -59,16 +59,19 @@ class ReportControllerTest {
     }
 
     @Test
-    void 유효한_토큰으로_리포트_조회_시_명세서_4_13_형식으로_응답한다() throws Exception {
+    void 유효한_토큰으로_리포트_조회_시_명세서_4_14_형식으로_응답한다() throws Exception {
         ReportResponse response = new ReportResponse(
                 "1",
                 ReportType.REPORT,
                 EntryPoint.S07,
                 "취업과 대학원 진학 사이의 고민",
                 "대학원에 가고 싶다",
+                "전문성을 키우고 싶다",
                 "대학원 진학을 유지하되, 연구실 인턴으로 먼저 적합성을 확인한다",
+                "연구실 인턴으로 적합성부터 확인",
                 "연구 전문성",
                 "희망 기업의 연구개발 직무 제안",
+                "대학원 이외의 경로에서도 연구 역량을 쌓을 수 있다는 가능성을 고려하게 되었어요",
                 "학위보다 체계적인 연구 방법 습득이 중요함",
                 null,
                 "실제 연구실 생활 적합성",
@@ -86,9 +89,12 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.entryPoint").value("S07"))
                 .andExpect(jsonPath("$.concernSummary").value("취업과 대학원 진학 사이의 고민"))
                 .andExpect(jsonPath("$.initialView").value("대학원에 가고 싶다"))
+                .andExpect(jsonPath("$.initialViewReason").value("전문성을 키우고 싶다"))
                 .andExpect(jsonPath("$.revisedView").value("대학원 진학을 유지하되, 연구실 인턴으로 먼저 적합성을 확인한다"))
+                .andExpect(jsonPath("$.revisedViewReason").value("연구실 인턴으로 적합성부터 확인"))
                 .andExpect(jsonPath("$.guidingValues").value("연구 전문성"))
                 .andExpect(jsonPath("$.shakingSituation").value("희망 기업의 연구개발 직무 제안"))
+                .andExpect(jsonPath("$.shakingSituationDetail").value("대학원 이외의 경로에서도 연구 역량을 쌓을 수 있다는 가능성을 고려하게 되었어요"))
                 .andExpect(jsonPath("$.clarifiedCriteria").value("학위보다 체계적인 연구 방법 습득이 중요함"))
                 .andExpect(jsonPath("$.undecidedReason").isEmpty())
                 .andExpect(jsonPath("$.missingInfo").value("실제 연구실 생활 적합성"))
