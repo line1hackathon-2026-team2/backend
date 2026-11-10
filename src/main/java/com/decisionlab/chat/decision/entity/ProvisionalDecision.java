@@ -41,14 +41,30 @@ public class ProvisionalDecision extends BaseTimeEntity {
     @Column(name = "decision_text", length = 200)
     private String decisionText;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "decision_text_source", length = 20)
+    private FieldSource decisionTextSource;
+
     @Column(name = "core_value", length = 200)
     private String coreValue;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "core_value_source", length = 20)
+    private FieldSource coreValueSource;
 
     @Column(name = "reason", length = 500)
     private String reason;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reason_source", length = 20)
+    private FieldSource reasonSource;
+
     @Column(name = "acceptable_cost", length = 500)
     private String acceptableCost;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "acceptable_cost_source", length = 20)
+    private FieldSource acceptableCostSource;
 
     @Column(name = "unchecked_condition", length = 500)
     private String uncheckedCondition;
@@ -59,14 +75,20 @@ public class ProvisionalDecision extends BaseTimeEntity {
 
     @Builder
     public ProvisionalDecision(UUID sessionId, Integer revisionNo, String summaryText, String decisionText,
-                                String coreValue, String reason, String acceptableCost, String uncheckedCondition) {
+                                FieldSource decisionTextSource, String coreValue, FieldSource coreValueSource,
+                                String reason, FieldSource reasonSource, String acceptableCost,
+                                FieldSource acceptableCostSource, String uncheckedCondition) {
         this.sessionId = sessionId;
         this.revisionNo = revisionNo;
         this.summaryText = summaryText;
         this.decisionText = decisionText;
+        this.decisionTextSource = decisionTextSource;
         this.coreValue = coreValue;
+        this.coreValueSource = coreValueSource;
         this.reason = reason;
+        this.reasonSource = reasonSource;
         this.acceptableCost = acceptableCost;
+        this.acceptableCostSource = acceptableCostSource;
         this.uncheckedCondition = uncheckedCondition;
     }
 

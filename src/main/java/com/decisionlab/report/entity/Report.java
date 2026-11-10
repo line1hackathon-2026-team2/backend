@@ -46,14 +46,23 @@ public class Report extends BaseTimeEntity {
     @Column(name = "initial_view", length = 500)
     private String initialView;
 
+    @Column(name = "initial_view_reason", length = 500)
+    private String initialViewReason;
+
     @Column(name = "revised_view", length = 500)
     private String revisedView;
+
+    @Column(name = "revised_view_reason", length = 500)
+    private String revisedViewReason;
 
     @Column(name = "guiding_values", length = 500)
     private String guidingValues;
 
     @Column(name = "shaking_situation", length = 500)
     private String shakingSituation;
+
+    @Column(name = "shaking_situation_detail", length = 500)
+    private String shakingSituationDetail;
 
     @Column(name = "clarified_criteria", length = 500)
     private String clarifiedCriteria;
@@ -69,16 +78,40 @@ public class Report extends BaseTimeEntity {
 
     @Builder
     public Report(UUID sessionId, ReportType reportType, EntryPoint entryPoint, String concernSummary,
-                   String initialView, String revisedView, String guidingValues, String shakingSituation,
-                   String clarifiedCriteria, String undecidedReason, String missingInfo, String disclaimer) {
+                  String initialView, String initialViewReason, String revisedView, String revisedViewReason,
+                  String guidingValues, String shakingSituation, String shakingSituationDetail,
+                  String clarifiedCriteria, String undecidedReason, String missingInfo, String disclaimer) {
         this.sessionId = sessionId;
         this.reportType = reportType;
         this.entryPoint = entryPoint;
         this.concernSummary = concernSummary;
         this.initialView = initialView;
+        this.initialViewReason = initialViewReason;
         this.revisedView = revisedView;
+        this.revisedViewReason = revisedViewReason;
         this.guidingValues = guidingValues;
         this.shakingSituation = shakingSituation;
+        this.shakingSituationDetail = shakingSituationDetail;
+        this.clarifiedCriteria = clarifiedCriteria;
+        this.undecidedReason = undecidedReason;
+        this.missingInfo = missingInfo;
+        this.disclaimer = disclaimer;
+    }
+
+    public void update(ReportType reportType, EntryPoint entryPoint, String concernSummary,
+                       String initialView, String initialViewReason, String revisedView, String revisedViewReason,
+                       String guidingValues, String shakingSituation, String shakingSituationDetail,
+                       String clarifiedCriteria, String undecidedReason, String missingInfo, String disclaimer) {
+        this.reportType = reportType;
+        this.entryPoint = entryPoint;
+        this.concernSummary = concernSummary;
+        this.initialView = initialView;
+        this.initialViewReason = initialViewReason;
+        this.revisedView = revisedView;
+        this.revisedViewReason = revisedViewReason;
+        this.guidingValues = guidingValues;
+        this.shakingSituation = shakingSituation;
+        this.shakingSituationDetail = shakingSituationDetail;
         this.clarifiedCriteria = clarifiedCriteria;
         this.undecidedReason = undecidedReason;
         this.missingInfo = missingInfo;
