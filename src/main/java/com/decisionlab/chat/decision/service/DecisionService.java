@@ -38,9 +38,13 @@ public class DecisionService {
                 .revisionNo(revisionNo)
                 .summaryText(result.summaryText())
                 .decisionText(result.decisionText())
+                .decisionTextSource(result.decisionTextSource())
                 .coreValue(result.coreValue())
+                .coreValueSource(result.coreValueSource())
                 .reason(result.reason())
+                .reasonSource(result.reasonSource())
                 .acceptableCost(result.acceptableCost())
+                .acceptableCostSource(result.acceptableCostSource())
                 .uncheckedCondition(result.uncheckedCondition())
                 .build());
 

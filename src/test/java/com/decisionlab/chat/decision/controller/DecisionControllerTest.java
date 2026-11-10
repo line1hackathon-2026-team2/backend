@@ -4,6 +4,8 @@ import com.decisionlab.chat.criterion.entity.CriterionSource;
 import com.decisionlab.chat.decision.dto.DecisionDraftResponse;
 import com.decisionlab.chat.decision.dto.DecisionDraftResponse.CriterionItem;
 import com.decisionlab.chat.decision.dto.DecisionDraftResponse.Fields;
+import com.decisionlab.chat.decision.dto.DecisionDraftResponse.FieldSources;
+import com.decisionlab.chat.decision.entity.FieldSource;
 import com.decisionlab.chat.decision.service.DecisionService;
 import com.decisionlab.session.entity.Session;
 import com.decisionlab.session.entity.SessionState;
@@ -59,6 +61,8 @@ class DecisionControllerTest {
                 1,
                 "현재는 대학원 진학에 조금 더 마음이 기울어 있어요.",
                 new Fields("대학원 진학", "연구 전문성", "연구개발 분야 희망", "취업 시점 지연", "실제 연구 경험"),
+                new FieldSources(FieldSource.USER_STATED, FieldSource.AI_INFERRED, FieldSource.USER_STATED,
+                        FieldSource.AI_INFERRED, FieldSource.NEEDS_CHECK),
                 List.of(new CriterionItem("100", "VALUE", "연구 전문성", CriterionSource.USER_STATED))
         );
         given(decisionService.draft(any())).willReturn(response);
@@ -70,6 +74,9 @@ class DecisionControllerTest {
                 .andExpect(jsonPath("$.decisionId").value("10"))
                 .andExpect(jsonPath("$.revisionNo").value(1))
                 .andExpect(jsonPath("$.fields.decisionText").value("대학원 진학"))
+                .andExpect(jsonPath("$.fieldSources.decisionText").value("USER_STATED"))
+                .andExpect(jsonPath("$.fieldSources.coreValue").value("AI_INFERRED"))
+                .andExpect(jsonPath("$.fieldSources.uncheckedCondition").value("NEEDS_CHECK"))
                 .andExpect(jsonPath("$.criteria[0].criterionId").value("100"))
                 .andExpect(jsonPath("$.criteria[0].source").value("USER_STATED"));
     }

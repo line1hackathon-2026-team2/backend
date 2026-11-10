@@ -7,6 +7,7 @@ import com.decisionlab.chat.criterion.repository.JudgmentCriterionRepository;
 import com.decisionlab.chat.decision.dto.DecisionDraftResponse;
 import com.decisionlab.chat.decision.dto.DecisionDraftResult;
 import com.decisionlab.chat.decision.dto.DecisionDraftResult.CriterionDraft;
+import com.decisionlab.chat.decision.entity.FieldSource;
 import com.decisionlab.chat.decision.entity.ProvisionalDecision;
 import com.decisionlab.chat.decision.repository.ProvisionalDecisionRepository;
 import com.decisionlab.session.entity.SessionState;
@@ -48,7 +49,12 @@ class DecisionServiceTest {
 
     DecisionDraftResult stubResult() {
         return new DecisionDraftResult(
-                "요약", "대학원 진학", "연구 전문성", "연구개발 분야 희망", "취업 시점 지연", "실제 연구 경험",
+                "요약",
+                "대학원 진학", FieldSource.USER_STATED,
+                "연구 전문성", FieldSource.AI_INFERRED,
+                "연구개발 분야 희망", FieldSource.USER_STATED,
+                "취업 시점 지연", FieldSource.AI_INFERRED,
+                "실제 연구 경험",
                 List.of(new CriterionDraft("VALUE", "연구 전문성", CriterionSource.USER_STATED))
         );
     }
@@ -76,6 +82,9 @@ class DecisionServiceTest {
         assertThat(response.decisionId()).isEqualTo("10");
         assertThat(response.revisionNo()).isEqualTo(1);
         assertThat(response.fields().decisionText()).isEqualTo("대학원 진학");
+        assertThat(response.fieldSources().decisionText()).isEqualTo(FieldSource.USER_STATED);
+        assertThat(response.fieldSources().coreValue()).isEqualTo(FieldSource.AI_INFERRED);
+        assertThat(response.fieldSources().uncheckedCondition()).isEqualTo(FieldSource.NEEDS_CHECK);
         assertThat(response.criteria()).hasSize(1);
         assertThat(response.criteria().get(0).criterionId()).isEqualTo("100");
     }
