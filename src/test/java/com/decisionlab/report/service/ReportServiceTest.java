@@ -48,9 +48,12 @@ class ReportServiceTest {
                 .entryPoint(EntryPoint.S07)
                 .concernSummary("취업과 대학원 진학 사이의 고민")
                 .initialView("대학원에 가고 싶다")
+                .initialViewReason("전문성을 키우고 싶다")
                 .revisedView("대학원 진학을 유지하되, 연구실 인턴으로 먼저 적합성을 확인한다")
+                .revisedViewReason("연구실 인턴으로 적합성부터 확인")
                 .guidingValues("연구 전문성")
                 .shakingSituation("희망 기업의 연구개발 직무 제안")
+                .shakingSituationDetail("대학원 이외의 경로에서도 연구 역량을 쌓을 수 있다는 가능성을 고려하게 되었어요")
                 .clarifiedCriteria("학위보다 체계적인 연구 방법 습득이 중요함")
                 .undecidedReason(null)
                 .missingInfo("실제 연구실 생활 적합성")
@@ -72,9 +75,12 @@ class ReportServiceTest {
         assertThat(response.entryPoint()).isEqualTo(EntryPoint.S07);
         assertThat(response.concernSummary()).isEqualTo("취업과 대학원 진학 사이의 고민");
         assertThat(response.initialView()).isEqualTo("대학원에 가고 싶다");
+        assertThat(response.initialViewReason()).isEqualTo("전문성을 키우고 싶다");
         assertThat(response.revisedView()).isEqualTo("대학원 진학을 유지하되, 연구실 인턴으로 먼저 적합성을 확인한다");
+        assertThat(response.revisedViewReason()).isEqualTo("연구실 인턴으로 적합성부터 확인");
         assertThat(response.guidingValues()).isEqualTo("연구 전문성");
         assertThat(response.shakingSituation()).isEqualTo("희망 기업의 연구개발 직무 제안");
+        assertThat(response.shakingSituationDetail()).isEqualTo("대학원 이외의 경로에서도 연구 역량을 쌓을 수 있다는 가능성을 고려하게 되었어요");
         assertThat(response.clarifiedCriteria()).isEqualTo("학위보다 체계적인 연구 방법 습득이 중요함");
         assertThat(response.undecidedReason()).isNull();
         assertThat(response.missingInfo()).isEqualTo("실제 연구실 생활 적합성");
