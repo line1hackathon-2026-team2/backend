@@ -26,6 +26,8 @@ public class SessionTokenFilter extends OncePerRequestFilter {
     private static final String SESSION_TOKEN_HEADER = "X-Session-Token";
     private static final Pattern SESSION_ID_IN_PATH = Pattern.compile("/api/v1/sessions/([^/]+)");
     private static final List<String> NO_TOKEN_PREFIXES = List.of("/swagger-ui", "/v3/api-docs");
+    // #15 리포트 공개 조회: reportId만 알면 누구나 조회 (4.15). /sessions/{id}/report(#14)는 여전히 토큰 필요
+    private static final Pattern PUBLIC_REPORT_PATH = Pattern.compile("/api/v1/reports/[^/]+");
 
     private final SessionRepository sessionRepository;
     private final SessionService sessionService;
@@ -52,6 +54,9 @@ public class SessionTokenFilter extends OncePerRequestFilter {
             return true;
         }
         if ("POST".equalsIgnoreCase(method) && "/api/v1/sessions/resume".equals(path)) {
+            return true;
+        }
+        if ("GET".equalsIgnoreCase(method) && PUBLIC_REPORT_PATH.matcher(path).matches()) {
             return true;
         }
         return "GET".equalsIgnoreCase(method) && "/api/v1/personas".equals(path);

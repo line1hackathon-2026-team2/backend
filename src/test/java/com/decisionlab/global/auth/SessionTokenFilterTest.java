@@ -57,6 +57,11 @@ class SessionTokenFilterTest {
         String ping(@PathVariable UUID id) {
             return SessionContext.getSessionId().toString();
         }
+
+        @GetMapping("/api/v1/reports/{reportId}")
+        String publicReport(@PathVariable String reportId) {
+            return "report-" + reportId;
+        }
     }
 
     private Session session(UUID id, LocalDateTime expiresAt) {
@@ -124,6 +129,26 @@ class SessionTokenFilterTest {
         mockMvc.perform(get("/api/v1/sessions/{id}/ping", id).header(HEADER, "token"))
                 .andExpect(status().isGone());
         verify(sessionService, never()).renewExpiry(any(), any());
+    }
+
+    @Test
+    void 리포트_공개_조회는_토큰_없이_통과한다() throws Exception {
+        mockMvc.perform(get("/api/v1/reports/{reportId}", "12"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("report-12"));
+        verify(sessionRepository, never()).findBySessionToken(any());
+        verify(sessionService, never()).renewExpiry(any(), any());
+    }
+
+    @Test
+    void 공개_예외는_GET_reports_단건뿐이고_나머지는_토큰이_필요하다() throws Exception {
+        mockMvc.perform(post("/api/v1/reports/{reportId}", "12"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/reports/{reportId}/extra", "12"))
+                .andExpect(status().isUnauthorized());
+        // #14 세션 리포트 조회는 토큰 필요
+        mockMvc.perform(get("/api/v1/sessions/{id}/report", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

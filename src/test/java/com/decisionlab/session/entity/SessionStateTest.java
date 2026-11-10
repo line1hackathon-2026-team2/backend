@@ -23,7 +23,9 @@ class SessionStateTest {
             "DILEMMA, RECONSIDER",
             "DILEMMA, REPORT",
             "REFLECTION, REPORT",
+            "REFLECTION, RECONSIDER",
             "RECONSIDER, EXPLORING",
+            "REPORT, EXPLORING",
             "PAUSED, EXPLORING"
     })
     void allowedTransitions(SessionState from, SessionState to) {
@@ -37,6 +39,7 @@ class SessionStateTest {
             "PROVISIONAL_DECISION, PROVISIONAL_DECISION",
             "DILEMMA, DILEMMA",
             "REFLECTION, EXPLORING",
+            "REFLECTION, DILEMMA",
             "RECONSIDER, REPORT",
             "PAUSED, REPORT"
     })
@@ -45,9 +48,9 @@ class SessionStateTest {
     }
 
     @Test
-    void reportIsTerminal() {
+    void REPORT에서는_reopen으로_EXPLORING만_갈_수_있다() {
         for (SessionState next : SessionState.values()) {
-            assertThat(SessionState.REPORT.canTransitionTo(next)).isFalse();
+            assertThat(SessionState.REPORT.canTransitionTo(next)).isEqualTo(next == SessionState.EXPLORING);
         }
     }
 }
