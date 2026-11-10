@@ -24,9 +24,11 @@ public enum SessionState {
             case EXPLORING -> EnumSet.of(EXPLORING, PROVISIONAL_DECISION, REPORT, PAUSED);
             case PROVISIONAL_DECISION -> EnumSet.of(DILEMMA, EXPLORING, REPORT);
             case DILEMMA -> EnumSet.of(REFLECTION, RECONSIDER, REPORT);
-            case REFLECTION -> EnumSet.of(REPORT);
+            // RECONSIDER: S07에서 유지 이유를 내기 전에 "생각이 바뀌었어요" (#11, 4.11)
+            case REFLECTION -> EnumSet.of(REPORT, RECONSIDER);
             case RECONSIDER -> EnumSet.of(EXPLORING);
-            case REPORT -> EnumSet.noneOf(SessionState.class);
+            // 리포트 화면의 "더 이야기해 볼래요" (#16 reopen, 4.16)
+            case REPORT -> EnumSet.of(EXPLORING);
             // SAVE(PAUSED)는 EXPLORING에서만 가능하므로 이어하기는 항상 EXPLORING으로 돌아간다.
             case PAUSED -> EnumSet.of(EXPLORING);
         };
