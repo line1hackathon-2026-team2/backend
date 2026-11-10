@@ -51,6 +51,7 @@
 | dilemmaType | `VALUE_CONFLICT` `OPPORTUNITY_COST` `ALT_PATH` `UNCERTAINTY` |
 | reportType | `REPORT` `UNDECIDED_REPORT` `INCOMPLETE_REPORT` |
 | inputType | `BUTTON` `FREE_TEXT` |
+| fieldSource | `USER_STATED`(내가 말했어요) `AI_INFERRED`(AI가 추론했어요) `NEEDS_CHECK`(확인 필요) |
 
 ## 2. 상태 전이 표
 
@@ -262,11 +263,19 @@ Response `200`
     "acceptableCost": "취업 시점의 지연",
     "uncheckedCondition": "실제 대학원 연구 경험"
   },
+  "fieldSources": {
+    "decisionText": "USER_STATED",
+    "coreValue": "AI_INFERRED",
+    "reason": "USER_STATED",
+    "acceptableCost": "AI_INFERRED",
+    "uncheckedCondition": "NEEDS_CHECK"
+  },
   "criteria": [
     { "criterionId": "...", "category": "VALUE", "content": "연구 전문성", "source": "USER_STATED" }
   ]
 }
 ```
+`fieldSources`는 `fields`와 같은 키를 가지며 S05 화면에서 필드별 배지("내가 말했어요"/"AI가 추론했어요"/"확인 필요")를 그리는 데 쓰인다. `uncheckedCondition`은 정의상 항상 `NEEDS_CHECK`.
 
 ### 4.9 잠정 결정 필드 수정 `PATCH /sessions/{sessionId}/decision/{decisionId}` (S05)
 
@@ -292,9 +301,17 @@ Response `200`
     "reason": "장기적으로 연구개발 분야에서 일하고 싶음",
     "acceptableCost": "취업 시점의 지연",
     "uncheckedCondition": "실제 대학원 연구 경험"
+  },
+  "fieldSources": {
+    "decisionText": "USER_STATED",
+    "coreValue": "USER_STATED",
+    "reason": "USER_STATED",
+    "acceptableCost": "AI_INFERRED",
+    "uncheckedCondition": "NEEDS_CHECK"
   }
 }
 ```
+사용자가 직접 수정한 필드의 `fieldSources`는 `USER_STATED`로 바뀐다(위 예시의 `coreValue`).
 
 ### 4.10 잠정 결정 처리 `POST /sessions/{sessionId}/decision/{decisionId}/resolve` (S05)
 
@@ -340,11 +357,25 @@ Request
 | choice | 버튼 | 허용 상태 | Response |
 |---|---|---|---|
 | KEEP | 선택을 유지할래요 | DILEMMA | `state: REFLECTION`, `prompt`: "새로운 조건이 생겼는데도 같은 선택을 유지하는 이유가 무엇인가요?" + `options` |
-| RECONSIDER | 마음이 흔들렸어요 | DILEMMA | `state: RECONSIDER`, `prompt`: 어떤 가치가 흔들렸는지 질문 + `suggestedPersonaCode` (예: STABILITY) |
+| RECONSIDER | 마음이 흔들렸어요 | DILEMMA | `state: RECONSIDER`, `prompt`: 어떤 가치가 흔들렸는지 질문 + `options` + `suggestedPersonaCode` (예: STABILITY) |
 | UNDECIDED | 여전히 결정하지 못했어요 | DILEMMA | `state: REPORT`, `reportId` (UNDECIDED_REPORT) |
 | RECONSIDER | (S07) 생각이 바뀌었어요 | REFLECTION | `state: RECONSIDER`, DILEMMA에서 호출한 것과 동일한 응답 |
 
 S07(유지 이유 작성 화면)에서 마음이 바뀌면 `keepReason`을 제출하기 전에 같은 엔드포인트를 `choice: RECONSIDER`로 다시 호출할 수 있다. 딜레마는 세션당 1개라 RECONSIDER는 자연히 1회만 가능하다. `reconsiderCount >= 1`인 세션(REFLECTION에서의 재호출 포함)에서 다시 요청하면 `409 RECONSIDER_LIMIT` (방어용).
+
+Response 예 (RECONSIDER) `200`
+```json
+{
+  "state": "RECONSIDER",
+  "prompt": "어떤 부분이 마음을 흔들었나요?",
+  "options": [
+    { "optionId": "o1", "label": "좋은 기업에서 일할 기회를 포기하는 게 아까워졌어요" },
+    { "optionId": "o2", "label": "대학원이 아니어도 연구 역량을 쌓을 수 있을 것 같아요" }
+  ],
+  "suggestedPersonaCode": "STABILITY"
+}
+```
+`options`는 Dilemma Generator가 해당 딜레마에 맞춰 생성하는 2~3개의 보기(S08). S08은 버튼 선택과 자유 입력(4.12의 `shakenValue`)을 동등하게 처리하므로, 버튼을 고르면 그 `label`을 그대로 `shakenValue`로 보낸다.
 
 ### 4.12 후속 입력 `PUT /sessions/{sessionId}/dilemma/followup` (S07, S08)
 
@@ -385,9 +416,12 @@ Response `200` (REPORT)
   "entryPoint": "S07",
   "concernSummary": "취업과 대학원 진학 사이의 고민",
   "initialView": "대학원에 가고 싶다",
+  "initialViewReason": "전문성을 키우고 싶다",
   "revisedView": "대학원 진학을 유지하되, 연구실 인턴으로 먼저 적합성을 확인한다",
+  "revisedViewReason": "연구실 인턴으로 적합성부터 확인",
   "guidingValues": "연구 전문성",
   "shakingSituation": "희망 기업의 연구개발 직무 제안",
+  "shakingSituationDetail": "대학원 이외의 경로에서도 연구 역량을 쌓을 수 있다는 가능성을 고려하게 되었어요",
   "clarifiedCriteria": "학위보다 체계적인 연구 방법 습득이 중요함",
   "undecidedReason": null,
   "missingInfo": "실제 연구실 생활 적합성",
@@ -403,8 +437,10 @@ Response `200` (REPORT)
 |---|---|---|---|
 | concernSummary | O | O (현재 비교하는 선택) | O |
 | initialView / revisedView | O | null | null |
+| initialViewReason / revisedViewReason | O | null | null |
 | guidingValues | O | O (가장 중요한 판단 기준) | O (현재까지 확인된 기준) |
 | shakingSituation | O | S06 진입 시만, S05 진입이면 null | null |
+| shakingSituationDetail | O | S06 진입 시만, S05 진입이면 null | null |
 | clarifiedCriteria | O | null | null |
 | undecidedReason | null | O | null |
 | missingInfo | O | O | O (확인하지 못한 항목) |
@@ -450,8 +486,9 @@ Response `200`: `{ "sessionId": "...", "sessionToken": "...", "state": "PAUSED" 
 | 모듈 | 호출되는 API | 입력 | 출력 |
 |---|---|---|---|
 | Conversation Engine | 4.5 persona, 4.6 messages | 고민, 대화 이력, personaCode | 질문 1개, 선택지 2~3개 |
-| Decision Extractor | 4.8 decision/draft | 대화 이력 | decision fields, criteria (unknown 허용) |
+| Decision Extractor | 4.8 decision/draft | 대화 이력 | decision fields, fieldSources, criteria (unknown 허용) |
 | Dilemma Generator | 4.10 resolve(APPROVE, reconsiderCount = 0) | 승인된 결정, 핵심 기준 | title, scenarioText, dilemmaType, verificationGoal |
+| Dilemma Generator (S08 보기) | 4.11 respond(RECONSIDER) | 딜레마, 세션 맥락 | 흔들린 가치 질문에 대한 options(2~3개) |
 | Report Generator | 4.10(UNDECIDED, 재검토 후 APPROVE), 4.11(UNDECIDED), 4.12, 4.13, 4.16(재개 후 재생성) | reportType, 전체 기록 | 유형별 리포트 항목 |
 
 ## 6. 결정 사항
@@ -470,3 +507,6 @@ Response `200`: `{ "sessionId": "...", "sessionToken": "...", "state": "PAUSED" 
 | `reports.session_id` | UNIQUE(기존 V1 제약 유지). 세션당 리포트는 하나만 존재하고, 재개(4.16) 후 다시 생성해도 같은 `reportId`로 덮어쓴다 |
 | 리포트 영구 저장 | 별도 저장 API나 스냅샷 테이블 없음. 4.14가 돌려준 `reportId`가 곧 영구 링크(4.15)이고, `X-Session-Token` 없이 조회 가능. 재개로 리포트가 갱신되면 이 링크의 내용도 함께 바뀜(스냅샷 고정 아님). 세션 만료와 무관하게 리포트 행은 유지됨. 비로그인 서비스라 `reportId`를 아는 사람은 누구나 조회 가능 |
 | 리포트에서 대화 재개 | S09/S09-U/S09-I에서 `POST reopen`(4.16)으로 EXPLORING 복귀 가능. 기존 딜레마 유무에 따라 이후 흐름이 갈림 |
+| 잠정 결정 필드별 출처(S05) | `fields`와 같은 키를 쓰는 `fieldSources` 객체 추가(4.8, 4.9). 값은 `USER_STATED`/`AI_INFERRED`/`NEEDS_CHECK`. 사용자가 PATCH로 직접 고치면 해당 필드는 `USER_STATED`로 갱신 |
+| 흔들린 가치 선택지(S08) | `dilemma/respond`의 RECONSIDER 응답(4.11)에 `options`(2~3개) 추가. 버튼 선택 시 그 `label`을 그대로 `followup`의 `shakenValue`로 전송(자유 입력과 동등 처리) |
+| 리포트 단계별 설명(S09) | `initialView`/`revisedView`/`shakingSituation`은 제목 역할, 각각 회색 설명을 담는 `initialViewReason`/`revisedViewReason`/`shakingSituationDetail`을 추가(4.14). null 규칙은 짝이 되는 기존 필드와 동일 |
