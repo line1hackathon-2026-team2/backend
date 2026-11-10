@@ -13,9 +13,7 @@ import com.decisionlab.chat.decision.entity.DecisionAction;
 import com.decisionlab.chat.decision.entity.ProvisionalDecision;
 import com.decisionlab.chat.decision.repository.ProvisionalDecisionRepository;
 import com.decisionlab.dilemma.dto.DilemmaResult;
-import com.decisionlab.dilemma.entity.DilemmaChoice;
 import com.decisionlab.dilemma.repository.DilemmaRepository;
-import com.decisionlab.dilemma.repository.DilemmaResponseRepository;
 import com.decisionlab.global.error.ApiException;
 import com.decisionlab.global.error.ErrorCode;
 import com.decisionlab.report.dto.ReportResult;
@@ -40,9 +38,8 @@ public class DecisionService {
     private final JudgmentCriterionRepository judgmentCriterionRepository;
     private final DilemmaGenerator dilemmaGenerator;
     private final ReportGenerator reportGenerator;
-    // C의 테이블은 읽기만 한다 (재검토 여부 판단용)
+    // C의 테이블은 읽기만 한다 (딜레마 존재 여부 판단용)
     private final DilemmaRepository dilemmaRepository;
-    private final DilemmaResponseRepository dilemmaResponseRepository;
 
     /** #8 잠정 결정 요약 생성 (S04→S05, F04) */
     @Transactional
@@ -105,8 +102,8 @@ public class DecisionService {
     private ResolveResponse handleApprove(UUID sessionId, ProvisionalDecision decision) {
         decision.resolve(DecisionAction.APPROVE);
 
-        if (hasReconsidered(sessionId)) {
-            // 재검토 후 APPROVE: 딜레마를 다시 만들지 않고 바로 REPORT (명세서 4.10)
+        if (hasExistingDilemma(sessionId)) {
+            // 이미 이 세션의 딜레마가 있으면(재검토 후든, 재개 후 재승인이든) 다시 만들지 않고 바로 REPORT (명세서 4.10)
             ReportResult report = reportGenerator.generate(sessionId, ReportType.REPORT, EntryPoint.S05);
             sessionStateService.transition(sessionId, SessionState.REPORT);
             return ResolveResponse.toReport(report.reportId());
@@ -136,15 +133,13 @@ public class DecisionService {
     }
 
     /**
-     * 딜레마는 세션당 1개라 RECONSIDER는 자연히 1회만 가능하다 (명세서 4.11).
-     * sessions 테이블에 별도 카운터 컬럼을 추가하는 대신, 세션의 딜레마에 RECONSIDER 응답이
-     * 있었는지로 reconsiderCount >= 1 여부를 판단한다.
+     * 딜레마는 세션당 1개(dilemmas.session_id UNIQUE)라, 재검토 후 재승인뿐 아니라
+     * KEEP으로 REPORT까지 간 세션을 reopen(#16) 후 다시 APPROVE하는 경우에도
+     * 이미 딜레마가 있다. reconsiderCount(RECONSIDER 응답 여부)로 판단하면 이 경우를
+     * 놓쳐 재생성을 시도하다 UNIQUE 제약에 걸릴 수 있어, 딜레마 존재 자체로 판단한다.
      */
-    private boolean hasReconsidered(UUID sessionId) {
-        return dilemmaRepository.findBySessionId(sessionId)
-                .flatMap(dilemma -> dilemmaResponseRepository.findByDilemmaId(dilemma.getId()))
-                .map(response -> response.getChoice() == DilemmaChoice.RECONSIDER)
-                .orElse(false);
+    private boolean hasExistingDilemma(UUID sessionId) {
+        return dilemmaRepository.findBySessionId(sessionId).isPresent();
     }
 
     private ProvisionalDecision getOwnedDecision(UUID sessionId, Long decisionId) {

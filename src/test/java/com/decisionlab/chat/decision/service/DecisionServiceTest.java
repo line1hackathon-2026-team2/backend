@@ -17,11 +17,8 @@ import com.decisionlab.chat.decision.entity.ProvisionalDecision;
 import com.decisionlab.chat.decision.repository.ProvisionalDecisionRepository;
 import com.decisionlab.dilemma.dto.DilemmaResult;
 import com.decisionlab.dilemma.entity.Dilemma;
-import com.decisionlab.dilemma.entity.DilemmaChoice;
-import com.decisionlab.dilemma.entity.DilemmaResponse;
 import com.decisionlab.dilemma.entity.DilemmaType;
 import com.decisionlab.dilemma.repository.DilemmaRepository;
-import com.decisionlab.dilemma.repository.DilemmaResponseRepository;
 import com.decisionlab.global.error.ApiException;
 import com.decisionlab.global.error.ErrorCode;
 import com.decisionlab.report.dto.ReportResult;
@@ -71,9 +68,6 @@ class DecisionServiceTest {
 
     @Mock
     DilemmaRepository dilemmaRepository;
-
-    @Mock
-    DilemmaResponseRepository dilemmaResponseRepository;
 
     @InjectMocks
     DecisionService decisionService;
@@ -170,7 +164,7 @@ class DecisionServiceTest {
     }
 
     @Test
-    void resolve_approve_afterReconsider_skipsDilemmaAndGoesToReport() throws Exception {
+    void resolve_approve_withExistingDilemma_skipsDilemmaAndGoesToReport() throws Exception {
         given(provisionalDecisionRepository.findById(decisionId)).willReturn(Optional.of(decision()));
         Dilemma dilemma = Dilemma.builder()
                 .sessionId(sessionId)
@@ -182,11 +176,6 @@ class DecisionServiceTest {
                 .build();
         setId(dilemma, 5L);
         given(dilemmaRepository.findBySessionId(sessionId)).willReturn(Optional.of(dilemma));
-        DilemmaResponse reconsiderResponse = DilemmaResponse.builder()
-                .dilemmaId(5L)
-                .choice(DilemmaChoice.RECONSIDER)
-                .build();
-        given(dilemmaResponseRepository.findByDilemmaId(5L)).willReturn(Optional.of(reconsiderResponse));
         given(reportGenerator.generate(sessionId, ReportType.REPORT, EntryPoint.S05))
                 .willReturn(reportResult(99L));
 
@@ -197,6 +186,34 @@ class DecisionServiceTest {
         assertThat(response.state()).isEqualTo(SessionState.REPORT);
         assertThat(response.reportId()).isEqualTo("99");
         assertThat(response.dilemma()).isNull();
+    }
+
+    /**
+     * PR #30 리뷰 코멘트: KEEP으로 REPORT까지 간 세션(RECONSIDER 없음)을 reopen 후
+     * 다시 APPROVE하면, reconsiderCount 기준으로는 "최초 승인"으로 오판해 딜레마를
+     * 다시 만들려다 dilemmas.session_id UNIQUE 제약에 걸릴 수 있었던 케이스.
+     */
+    @Test
+    void resolve_approve_afterReopenWithoutReconsider_stillSkipsDilemmaRegeneration() throws Exception {
+        given(provisionalDecisionRepository.findById(decisionId)).willReturn(Optional.of(decision()));
+        Dilemma dilemma = Dilemma.builder()
+                .sessionId(sessionId)
+                .decisionId(1L)
+                .dilemmaType(DilemmaType.ALT_PATH)
+                .scenarioText("시나리오")
+                .verificationGoal("목표")
+                .fallback(false)
+                .build();
+        setId(dilemma, 5L);
+        given(dilemmaRepository.findBySessionId(sessionId)).willReturn(Optional.of(dilemma));
+        given(reportGenerator.generate(sessionId, ReportType.REPORT, EntryPoint.S05))
+                .willReturn(reportResult(123L));
+
+        ResolveResponse response = decisionService.resolve(sessionId, decisionId, new ResolveRequest(DecisionAction.APPROVE));
+
+        verify(dilemmaGenerator, never()).generate(any(), any());
+        verify(sessionStateService).transition(sessionId, SessionState.REPORT);
+        assertThat(response.reportId()).isEqualTo("123");
     }
 
     @Test
