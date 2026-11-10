@@ -9,7 +9,6 @@ public record AiMessage(
         Long messageId,
         PersonaCode personaCode,
         String content,
-        List<MessageOption> options,
-        Integer turnNo
+        List<MessageOption> options
 ) {
 }

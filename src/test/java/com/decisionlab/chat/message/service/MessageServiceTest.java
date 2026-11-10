@@ -2,6 +2,7 @@ package com.decisionlab.chat.message.service;
 
 import com.decisionlab.ai.conversation.ConversationEngine;
 import com.decisionlab.chat.message.dto.AiMessage;
+import com.decisionlab.chat.message.dto.AiMessageTurn;
 import com.decisionlab.chat.message.dto.MessageHistoryResponse;
 import com.decisionlab.chat.message.dto.MessageRequest;
 import com.decisionlab.chat.message.dto.MessageResponse;
@@ -75,8 +76,9 @@ class MessageServiceTest {
             setId(message, 1L);
             return message;
         });
-        AiMessage aiMessage = new AiMessage(2L, PersonaCode.ACHIEVEMENT, "질문", List.of(), 2);
-        given(conversationEngine.respond(sessionId, PersonaCode.ACHIEVEMENT, "제 생각이에요")).willReturn(aiMessage);
+        AiMessage aiMessage = new AiMessage(2L, PersonaCode.ACHIEVEMENT, "질문", List.of());
+        given(conversationEngine.respond(sessionId, PersonaCode.ACHIEVEMENT, "제 생각이에요"))
+                .willReturn(new AiMessageTurn(aiMessage, 2));
 
         MessageResponse response = messageService.send(sessionId,
                 new MessageRequest(InputType.FREE_TEXT, null, "제 생각이에요"));
@@ -101,8 +103,9 @@ class MessageServiceTest {
                 .build();
         given(messageRepository.findBySessionIdOrderByTurnNoAsc(sessionId)).willReturn(List.of(lastAiMessage));
         given(messageRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
-        AiMessage aiMessage = new AiMessage(3L, PersonaCode.ACHIEVEMENT, "다음 질문", List.of(), 3);
-        given(conversationEngine.respond(sessionId, PersonaCode.ACHIEVEMENT, "네, 말해볼게요")).willReturn(aiMessage);
+        AiMessage aiMessage = new AiMessage(3L, PersonaCode.ACHIEVEMENT, "다음 질문", List.of());
+        given(conversationEngine.respond(sessionId, PersonaCode.ACHIEVEMENT, "네, 말해볼게요"))
+                .willReturn(new AiMessageTurn(aiMessage, 3));
 
         MessageResponse response = messageService.send(sessionId,
                 new MessageRequest(InputType.BUTTON, "o1", null));

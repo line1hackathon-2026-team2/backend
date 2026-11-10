@@ -1,7 +1,7 @@
 package com.decisionlab.chat.message.service;
 
 import com.decisionlab.ai.conversation.ConversationEngine;
-import com.decisionlab.chat.message.dto.AiMessage;
+import com.decisionlab.chat.message.dto.AiMessageTurn;
 import com.decisionlab.chat.message.dto.MessageHistoryResponse;
 import com.decisionlab.chat.message.dto.MessageRequest;
 import com.decisionlab.chat.message.dto.MessageResponse;
@@ -60,14 +60,14 @@ public class MessageService {
                 .selectedOptionId(request.selectedOptionId())
                 .build());
 
-        AiMessage aiMessage = conversationEngine.respond(sessionId, currentPersona, userContent);
+        AiMessageTurn turn = conversationEngine.respond(sessionId, currentPersona, userContent);
 
-        boolean canProceedToDecision = aiMessage.turnNo() != null && aiMessage.turnNo() >= MIN_TURN_FOR_DECISION;
+        boolean canProceedToDecision = turn.turnNo() != null && turn.turnNo() >= MIN_TURN_FOR_DECISION;
 
         return new MessageResponse(
                 String.valueOf(userMessage.getId()),
-                MessageResponse.AiMessageItem.from(aiMessage),
-                aiMessage.turnNo(),
+                MessageResponse.AiMessageItem.from(turn.aiMessage()),
+                turn.turnNo(),
                 canProceedToDecision
         );
     }

@@ -1,6 +1,7 @@
 package com.decisionlab.ai.conversation;
 
 import com.decisionlab.chat.message.dto.AiMessage;
+import com.decisionlab.chat.message.dto.AiMessageTurn;
 import com.decisionlab.chat.message.entity.InputType;
 import com.decisionlab.chat.message.entity.Message;
 import com.decisionlab.chat.message.entity.MessageOption;
@@ -41,7 +42,7 @@ public class StubConversationEngine implements ConversationEngine {
 
     @Override
     @Transactional
-    public AiMessage respond(UUID sessionId, PersonaCode code, String userUtterance) {
+    public AiMessageTurn respond(UUID sessionId, PersonaCode code, String userUtterance) {
         Message message = messageRepository.save(Message.builder()
                 .sessionId(sessionId)
                 .turnNo(nextTurnNo(sessionId))
@@ -55,7 +56,7 @@ public class StubConversationEngine implements ConversationEngine {
                 .inputType(InputType.BUTTON)
                 .build());
 
-        return toAiMessage(message);
+        return new AiMessageTurn(toAiMessage(message), message.getTurnNo());
     }
 
     @Override
@@ -68,7 +69,6 @@ public class StubConversationEngine implements ConversationEngine {
     }
 
     private AiMessage toAiMessage(Message message) {
-        return new AiMessage(message.getId(), message.getPersonaCode(), message.getContent(), message.getOptions(),
-                message.getTurnNo());
+        return new AiMessage(message.getId(), message.getPersonaCode(), message.getContent(), message.getOptions());
     }
 }
