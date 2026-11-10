@@ -13,8 +13,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
-public class
-SessionService {
+public class SessionService {
 
     // 같은 사용자의 연속 요청마다 UPDATE가 나가지 않도록, 마지막 연장 후 1분이 지났을 때만 연장한다.
     private static final Duration RENEW_INTERVAL = Duration.ofMinutes(1);
