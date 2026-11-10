@@ -14,6 +14,11 @@ public interface SessionRepository extends JpaRepository<Session, UUID> {
 
     Optional<Session> findBySessionToken(String sessionToken);
 
+    /** #17 이어하기 코드로 세션 찾기 */
+    Optional<Session> findByResumeCode(String resumeCode);
+
+    boolean existsByResumeCode(String resumeCode);
+
     /**
      * 동시 요청 처리
      * 상태가 expected일 때만 next로 바꾼다. 바뀐 행 수(0 또는 1)를 반환한다.
