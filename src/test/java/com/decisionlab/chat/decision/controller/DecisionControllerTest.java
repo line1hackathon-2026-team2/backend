@@ -90,7 +90,7 @@ class DecisionControllerTest {
     void 승인_첫_시도는_명세서_4_10_딜레마_응답_형식이다() throws Exception {
         UUID sessionId = UUID.randomUUID();
         given(sessionRepository.findBySessionToken("token")).willReturn(Optional.of(session(sessionId)));
-        DilemmaResult dilemmaResult = new DilemmaResult(1L, DilemmaType.ALT_PATH, "시나리오", "검증 목표", false);
+        DilemmaResult dilemmaResult = new DilemmaResult(1L, DilemmaType.ALT_PATH, "제목", "시나리오", "검증 목표", false);
         given(decisionService.resolve(eq(sessionId), eq(10L), any()))
                 .willReturn(ResolveResponse.toDilemma(dilemmaResult));
 
@@ -103,6 +103,7 @@ class DecisionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("DILEMMA"))
                 .andExpect(jsonPath("$.dilemma.dilemmaId").value("1"))
+                .andExpect(jsonPath("$.dilemma.title").value("제목"))
                 .andExpect(jsonPath("$.dilemma.scenarioText").value("시나리오"))
                 .andExpect(jsonPath("$.reportId").doesNotExist());
     }

@@ -19,13 +19,11 @@ public record ResolveResponse(
             String verificationGoal,
             boolean isFallback
     ) {
-        // TODO(C): DilemmaResult/Dilemma에 title 필드가 아직 없어 null로 내려간다.
-        // 명세서 4.10 "title은 Dilemma Generator가 scenarioText와 함께 생성" 참고 — 추가되면 교체.
         public static DilemmaItem from(DilemmaResult result) {
             return new DilemmaItem(
                     String.valueOf(result.dilemmaId()),
                     result.dilemmaType(),
-                    null,
+                    result.title(),
                     result.scenarioText(),
                     result.verificationGoal(),
                     result.isFallback()
