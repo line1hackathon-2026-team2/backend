@@ -47,6 +47,10 @@ public class SessionTokenFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
 
+        // CORS 사전 요청(preflight)에는 토큰이 없다. 보통은 앞단의 CorsFilter가 먼저 응답하지만, 안전장치로 한 번 더 건너뛴다.
+        if ("OPTIONS".equalsIgnoreCase(method)) {
+            return true;
+        }
         if (NO_TOKEN_PREFIXES.stream().anyMatch(path::startsWith)) {
             return true;
         }
