@@ -6,7 +6,7 @@ import com.decisionlab.global.error.ErrorCode;
 import com.decisionlab.report.dto.ReportResult;
 import com.decisionlab.report.entity.EntryPoint;
 import com.decisionlab.report.entity.ReportType;
-import com.decisionlab.session.dto.EndMode;
+import com.decisionlab.session.entity.EndMode;
 import com.decisionlab.session.dto.EndRequest;
 import com.decisionlab.session.dto.EndResponse;
 import com.decisionlab.session.entity.SessionState;
@@ -32,7 +32,9 @@ class SessionEndServiceTest {
 
     private final SessionStateService sessionStateService = mock(SessionStateService.class);
     private final ReportGenerator reportGenerator = mock(ReportGenerator.class);
-    private final SessionEndService sessionEndService = new SessionEndService(sessionStateService, reportGenerator);
+    private final SessionSaveService sessionSaveService = mock(SessionSaveService.class);
+    private final SessionEndService sessionEndService =
+            new SessionEndService(sessionStateService, reportGenerator, sessionSaveService);
 
     private final UUID sessionId = UUID.randomUUID();
 
@@ -51,6 +53,8 @@ class SessionEndServiceTest {
 
         assertThat(response.state()).isEqualTo(SessionState.REPORT);
         assertThat(response.reportId()).isEqualTo("15");
+        assertThat(response.resumeCode()).isNull();
+        verifyNoInteractions(sessionSaveService);
 
         // 상태 검증 → 리포트 생성 → 상태 전이 순서
         InOrder order = inOrder(sessionStateService, reportGenerator);
@@ -85,11 +89,25 @@ class SessionEndServiceTest {
     }
 
     @Test
-    void SAVE는_아직_지원하지_않아_400이고_아무것도_하지_않는다() {
+    void SAVE면_저장_서비스로_PAUSED와_이어하기_코드를_돌려주고_리포트는_만들지_않는다() {
+        when(sessionSaveService.save(sessionId)).thenReturn("ABCD-1234");
+
+        EndResponse response = sessionEndService.end(sessionId, new EndRequest(EndMode.SAVE));
+
+        assertThat(response.state()).isEqualTo(SessionState.PAUSED);
+        assertThat(response.resumeCode()).isEqualTo("ABCD-1234");
+        assertThat(response.reportId()).isNull();
+        verifyNoInteractions(reportGenerator);
+    }
+
+    @Test
+    void SAVE에서_EXPLORING이_아니면_저장_서비스의_409가_그대로_나간다() {
+        when(sessionSaveService.save(sessionId))
+                .thenThrow(new ApiException(ErrorCode.INVALID_STATE_TRANSITION, "불가", "REPORT"));
+
         assertThatThrownBy(() -> sessionEndService.end(sessionId, new EndRequest(EndMode.SAVE)))
                 .isInstanceOf(ApiException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.VALIDATION_ERROR);
-
-        verifyNoInteractions(sessionStateService, reportGenerator);
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_STATE_TRANSITION);
+        verifyNoInteractions(reportGenerator);
     }
 }

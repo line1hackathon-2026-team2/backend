@@ -2,7 +2,7 @@ package com.decisionlab.session.controller;
 
 import com.decisionlab.global.error.ApiException;
 import com.decisionlab.global.error.ErrorCode;
-import com.decisionlab.session.dto.EndMode;
+import com.decisionlab.session.entity.EndMode;
 import com.decisionlab.session.dto.EndRequest;
 import com.decisionlab.session.dto.EndResponse;
 import com.decisionlab.session.entity.Session;
@@ -74,7 +74,20 @@ class SessionEndControllerTest {
         postEnd("{\"mode\":\"INCOMPLETE_REPORT\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("REPORT"))
-                .andExpect(jsonPath("$.reportId").value("15"));
+                .andExpect(jsonPath("$.reportId").value("15"))
+                .andExpect(jsonPath("$.resumeCode").doesNotExist());
+    }
+
+    @Test
+    void SAVE면_명세서_4_13_형식으로_PAUSED와_resumeCode만_내려준다() throws Exception {
+        when(sessionEndService.end(sessionId, new EndRequest(EndMode.SAVE)))
+                .thenReturn(EndResponse.paused("ABCD-1234"));
+
+        postEnd("{\"mode\":\"SAVE\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("PAUSED"))
+                .andExpect(jsonPath("$.resumeCode").value("ABCD-1234"))
+                .andExpect(jsonPath("$.reportId").doesNotExist());
     }
 
     @Test
