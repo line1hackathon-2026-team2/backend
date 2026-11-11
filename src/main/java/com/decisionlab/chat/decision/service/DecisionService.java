@@ -7,6 +7,8 @@ import com.decisionlab.chat.criterion.entity.JudgmentCriterion;
 import com.decisionlab.chat.criterion.repository.JudgmentCriterionRepository;
 import com.decisionlab.chat.decision.dto.DecisionDraftResponse;
 import com.decisionlab.chat.decision.dto.DecisionDraftResult;
+import com.decisionlab.chat.decision.dto.EditFieldRequest;
+import com.decisionlab.chat.decision.dto.EditFieldResponse;
 import com.decisionlab.chat.decision.dto.ResolveRequest;
 import com.decisionlab.chat.decision.dto.ResolveResponse;
 import com.decisionlab.chat.decision.entity.DecisionAction;
@@ -26,11 +28,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class DecisionService {
+
+    private static final Set<String> EDITABLE_FIELDS = Set.of(
+            "decisionText", "coreValue", "reason", "acceptableCost", "uncheckedCondition");
 
     private final SessionStateService sessionStateService;
     private final DecisionExtractor decisionExtractor;
@@ -84,6 +90,22 @@ public class DecisionService {
                 .findFirst()
                 .map(d -> d.getRevisionNo() + 1)
                 .orElse(1);
+    }
+
+    /** #9 잠정 결정 필드 수정 (S05, P1) */
+    @Transactional
+    public EditFieldResponse editField(UUID sessionId, Long decisionId, EditFieldRequest request) {
+        sessionStateService.requireState(sessionId, SessionState.PROVISIONAL_DECISION);
+
+        if (!EDITABLE_FIELDS.contains(request.field())) {
+            throw new ApiException(ErrorCode.VALIDATION_ERROR,
+                    "field는 decisionText, coreValue, reason, acceptableCost, uncheckedCondition 중 하나여야 합니다.");
+        }
+
+        ProvisionalDecision decision = getOwnedDecision(sessionId, decisionId);
+        decision.updateField(request.field(), request.value());
+
+        return EditFieldResponse.from(decision);
     }
 
     /** #10 잠정 결정 처리: 승인/수정/미결정 (S05) */

@@ -9,6 +9,8 @@ import com.decisionlab.chat.criterion.repository.JudgmentCriterionRepository;
 import com.decisionlab.chat.decision.dto.DecisionDraftResponse;
 import com.decisionlab.chat.decision.dto.DecisionDraftResult;
 import com.decisionlab.chat.decision.dto.DecisionDraftResult.CriterionDraft;
+import com.decisionlab.chat.decision.dto.EditFieldRequest;
+import com.decisionlab.chat.decision.dto.EditFieldResponse;
 import com.decisionlab.chat.decision.dto.ResolveRequest;
 import com.decisionlab.chat.decision.dto.ResolveResponse;
 import com.decisionlab.chat.decision.entity.DecisionAction;
@@ -73,6 +75,7 @@ class DecisionServiceTest {
     DecisionService decisionService;
 
     UUID sessionId = UUID.randomUUID();
+    Long decisionId = 10L;
 
     DecisionDraftResult stubResult() {
         return new DecisionDraftResult(
@@ -133,8 +136,6 @@ class DecisionServiceTest {
         assertThat(response.revisionNo()).isEqualTo(3);
     }
 
-    Long decisionId = 10L;
-
     private ProvisionalDecision decision() throws Exception {
         ProvisionalDecision decision = ProvisionalDecision.builder()
                 .sessionId(sessionId)
@@ -143,6 +144,55 @@ class DecisionServiceTest {
                 .build();
         setId(decision, decisionId);
         return decision;
+    }
+
+    private ProvisionalDecision decision(UUID ownerSessionId) throws Exception {
+        ProvisionalDecision decision = ProvisionalDecision.builder()
+                .sessionId(ownerSessionId)
+                .revisionNo(1)
+                .summaryText("요약")
+                .decisionText("대학원 진학")
+                .coreValue("연구 전문성")
+                .reason("연구개발 분야 희망")
+                .acceptableCost("취업 시점 지연")
+                .uncheckedCondition("실제 연구 경험")
+                .build();
+        setId(decision, decisionId);
+        return decision;
+    }
+
+    @Test
+    void editField_updatesOnlyRequestedField_keepsRevisionNo() throws Exception {
+        given(provisionalDecisionRepository.findById(decisionId)).willReturn(Optional.of(decision(sessionId)));
+
+        EditFieldResponse response = decisionService.editField(sessionId, decisionId,
+                new EditFieldRequest("coreValue", "경제적 안정"));
+
+        verify(sessionStateService).requireState(sessionId, SessionState.PROVISIONAL_DECISION);
+        assertThat(response.decisionId()).isEqualTo("10");
+        assertThat(response.revisionNo()).isEqualTo(1);
+        assertThat(response.fields().coreValue()).isEqualTo("경제적 안정");
+        assertThat(response.fields().decisionText()).isEqualTo("대학원 진학");
+    }
+
+    @Test
+    void editField_withUnknownField_throwsValidationError() {
+        assertThatThrownBy(() -> decisionService.editField(sessionId, decisionId,
+                new EditFieldRequest("unknownField", "값")))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).getErrorCode())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR);
+    }
+
+    @Test
+    void editField_withDecisionFromAnotherSession_throwsNotFound() throws Exception {
+        given(provisionalDecisionRepository.findById(decisionId)).willReturn(Optional.of(decision(UUID.randomUUID())));
+
+        assertThatThrownBy(() -> decisionService.editField(sessionId, decisionId,
+                new EditFieldRequest("coreValue", "경제적 안정")))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
     }
 
     @Test
@@ -225,7 +275,7 @@ class DecisionServiceTest {
                 .decisionId(decisionId)
                 .category("VALUE")
                 .content("연구 전문성")
-                .source(com.decisionlab.chat.criterion.entity.CriterionSource.USER_STATED)
+                .source(CriterionSource.USER_STATED)
                 .build();
         given(judgmentCriterionRepository.findByDecisionId(decisionId)).willReturn(List.of(criterion));
 
