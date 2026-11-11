@@ -2,6 +2,8 @@ package com.decisionlab.dilemma.service;
 
 import com.decisionlab.ai.report.ReportGenerator;
 import com.decisionlab.chat.message.entity.MessageOption;
+import com.decisionlab.dilemma.dto.DilemmaFollowupRequest;
+import com.decisionlab.dilemma.dto.DilemmaFollowupResponse;
 import com.decisionlab.dilemma.dto.DilemmaRespondRequest;
 import com.decisionlab.dilemma.dto.DilemmaRespondResponse;
 import com.decisionlab.dilemma.entity.Dilemma;
@@ -22,6 +24,7 @@ import com.decisionlab.session.service.SessionStateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Optional;
@@ -91,6 +94,45 @@ public class DilemmaService {
                 yield DilemmaRespondResponse.undecided(reportResult.reportId());
             }
         };
+    }
+
+    /**
+     * #12 딜레마 후속 입력 (유지 이유 / 흔들린 가치 입력, 명세서 4.12).
+     * REFLECTION (keepReason) -> REPORT, RECONSIDER (shakenValue) -> EXPLORING
+     */
+    @Transactional
+    public DilemmaFollowupResponse followup(UUID sessionId, DilemmaFollowupRequest request) {
+        boolean hasKeepReason = StringUtils.hasText(request.keepReason());
+        boolean hasShakenValue = StringUtils.hasText(request.shakenValue());
+
+        if (hasKeepReason == hasShakenValue) {
+            throw new ApiException(ErrorCode.VALIDATION_ERROR, "keepReason 또는 shakenValue 중 하나만 입력해야 합니다.");
+        }
+
+        if (hasKeepReason) {
+            sessionStateService.requireState(sessionId, SessionState.REFLECTION);
+            DilemmaResponse dilemmaResponse = getDilemmaResponse(sessionId);
+            dilemmaResponse.updateKeepReason(request.keepReason().trim());
+
+            ReportResult reportResult = reportGenerator.generate(sessionId, ReportType.REPORT, EntryPoint.S07);
+            sessionStateService.transition(sessionId, SessionState.REPORT);
+            return DilemmaFollowupResponse.keep(reportResult.reportId());
+        }
+
+        sessionStateService.requireState(sessionId, SessionState.RECONSIDER);
+        DilemmaResponse dilemmaResponse = getDilemmaResponse(sessionId);
+        dilemmaResponse.updateShakenValue(request.shakenValue().trim());
+
+        PersonaCode suggestedPersona = suggestNextPersona(sessionId);
+        sessionStateService.transition(sessionId, SessionState.EXPLORING);
+        return DilemmaFollowupResponse.reconsider(1, suggestedPersona);
+    }
+
+    private DilemmaResponse getDilemmaResponse(UUID sessionId) {
+        Dilemma dilemma = dilemmaRepository.findBySessionId(sessionId)
+                .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "딜레마를 찾을 수 없습니다."));
+        return dilemmaResponseRepository.findByDilemmaId(dilemma.getId())
+                .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "딜레마 응답을 찾을 수 없습니다."));
     }
 
     private boolean isAlreadyReconsidered(Optional<DilemmaResponse> existingOpt) {
