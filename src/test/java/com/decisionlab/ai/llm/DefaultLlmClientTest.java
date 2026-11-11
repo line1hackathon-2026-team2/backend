@@ -1,5 +1,8 @@
 package com.decisionlab.ai.llm;
 
+import com.anthropic.core.JsonValue;
+import com.anthropic.core.http.Headers;
+import com.anthropic.errors.BadRequestException;
 import com.decisionlab.ai.prompt.PromptLoader;
 import com.decisionlab.global.error.ApiException;
 import com.decisionlab.global.error.ErrorCode;
@@ -82,5 +85,22 @@ class DefaultLlmClientTest {
 
         // 최초 1회 + 재시도 최대 2회 = 총 3회
         verify(chatClient, times(3)).prompt();
+    }
+
+    @Test
+    void call_doesNotRetry_onNonRetryable400Error() {
+        BadRequestException badRequest = BadRequestException.builder()
+                .headers(Headers.builder().build())
+                .body(JsonValue.from(Map.of()))
+                .build();
+        given(callResponseSpec.entity(Dummy.class)).willThrow(badRequest);
+
+        assertThatThrownBy(() -> llmClient.call("key", Map.of(), Dummy.class))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).getErrorCode())
+                .isEqualTo(ErrorCode.LLM_FAILED);
+
+        // 400은 재시도해도 똑같이 실패하므로 1회만 호출되어야 한다
+        verify(chatClient, times(1)).prompt();
     }
 }
