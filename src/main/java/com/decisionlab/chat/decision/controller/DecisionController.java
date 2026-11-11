@@ -1,10 +1,13 @@
 package com.decisionlab.chat.decision.controller;
 
 import com.decisionlab.chat.decision.dto.DecisionDraftResponse;
+import com.decisionlab.chat.decision.dto.EditFieldRequest;
+import com.decisionlab.chat.decision.dto.EditFieldResponse;
 import com.decisionlab.chat.decision.dto.ResolveRequest;
 import com.decisionlab.chat.decision.dto.ResolveResponse;
 import com.decisionlab.chat.decision.service.DecisionService;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,6 +30,13 @@ public class DecisionController {
     @PostMapping("/draft")
     public DecisionDraftResponse draft(@PathVariable UUID sessionId) {
         return decisionService.draft(sessionId);
+    }
+
+    /** #9 잠정 결정 필드 수정 (S05, P1) */
+    @PatchMapping("/{decisionId}")
+    public EditFieldResponse editField(@PathVariable UUID sessionId, @PathVariable Long decisionId,
+                                        @Valid @RequestBody EditFieldRequest request) {
+        return decisionService.editField(sessionId, decisionId, request);
     }
 
     /** #10 잠정 결정 처리: 승인/수정/미결정 (S05) */

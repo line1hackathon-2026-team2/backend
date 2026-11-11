@@ -95,4 +95,19 @@ public class ProvisionalDecision extends BaseTimeEntity {
     public void resolve(DecisionAction action) {
         this.resolvedAction = action;
     }
+
+    /**
+     * #9 필드 단위 수정(PATCH). revisionNo는 올리지 않고 같은 리비전의 값만 덮어쓴다.
+     * field는 서비스에서 이미 검증된 값(decisionText/coreValue/reason/acceptableCost/uncheckedCondition)만 들어온다.
+     */
+    public void updateField(String field, String value) {
+        switch (field) {
+            case "decisionText" -> this.decisionText = value;
+            case "coreValue" -> this.coreValue = value;
+            case "reason" -> this.reason = value;
+            case "acceptableCost" -> this.acceptableCost = value;
+            case "uncheckedCondition" -> this.uncheckedCondition = value;
+            default -> throw new IllegalArgumentException("알 수 없는 필드: " + field);
+        }
+    }
 }
