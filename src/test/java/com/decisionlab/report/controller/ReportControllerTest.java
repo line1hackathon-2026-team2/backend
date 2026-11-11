@@ -60,25 +60,7 @@ class ReportControllerTest {
 
     @Test
     void 유효한_토큰으로_리포트_조회_시_명세서_4_14_형식으로_응답한다() throws Exception {
-        ReportResponse response = new ReportResponse(
-                "1",
-                ReportType.REPORT,
-                EntryPoint.S07,
-                "취업과 대학원 진학 사이의 고민",
-                "대학원에 가고 싶다",
-                "전문성을 키우고 싶다",
-                "대학원 진학을 유지하되, 연구실 인턴으로 먼저 적합성을 확인한다",
-                "연구실 인턴으로 적합성부터 확인",
-                "연구 전문성",
-                "희망 기업의 연구개발 직무 제안",
-                "대학원 이외의 경로에서도 연구 역량을 쌓을 수 있다는 가능성을 고려하게 되었어요",
-                "학위보다 체계적인 연구 방법 습득이 중요함",
-                null,
-                "실제 연구실 생활 적합성",
-                List.of(new NextActionItem(1, "연구실 인턴 지원하기")),
-                "이 리포트는 선택의 정답을 평가하지 않습니다.",
-                OffsetDateTime.of(2026, 11, 2, 21, 30, 0, 0, ZoneOffset.ofHours(9))
-        );
+        ReportResponse response = sampleReportResponse();
         when(reportService.getReport(sessionId)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/sessions/{sessionId}/report", sessionId)
@@ -131,5 +113,55 @@ class ReportControllerTest {
                         .header("X-Session-Token", validToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void 세션_토큰_없이_reportId로_리포트_공개_조회_시_200_응답을_반환한다() throws Exception {
+        when(reportService.getReportById(1L)).thenReturn(sampleReportResponse());
+
+        mockMvc.perform(get("/api/v1/reports/{reportId}", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reportId").value("1"))
+                .andExpect(jsonPath("$.reportType").value("REPORT"))
+                .andExpect(jsonPath("$.concernSummary").value("취업과 대학원 진학 사이의 고민"));
+    }
+
+    @Test
+    void 공개_조회_시_존재하지_않는_reportId면_404_응답을_반환한다() throws Exception {
+        when(reportService.getReportById(999L))
+                .thenThrow(new ApiException(ErrorCode.NOT_FOUND, "리포트를 찾을 수 없습니다."));
+
+        mockMvc.perform(get("/api/v1/reports/{reportId}", 999L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
+    }
+
+    @Test
+    void 공개_조회_시_숫자가_아닌_reportId면_400_응답을_반환한다() throws Exception {
+        mockMvc.perform(get("/api/v1/reports/{reportId}", "invalid-id"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    }
+
+    private static ReportResponse sampleReportResponse() {
+        return new ReportResponse(
+                "1",
+                ReportType.REPORT,
+                EntryPoint.S07,
+                "취업과 대학원 진학 사이의 고민",
+                "대학원에 가고 싶다",
+                "전문성을 키우고 싶다",
+                "대학원 진학을 유지하되, 연구실 인턴으로 먼저 적합성을 확인한다",
+                "연구실 인턴으로 적합성부터 확인",
+                "연구 전문성",
+                "희망 기업의 연구개발 직무 제안",
+                "대학원 이외의 경로에서도 연구 역량을 쌓을 수 있다는 가능성을 고려하게 되었어요",
+                "학위보다 체계적인 연구 방법 습득이 중요함",
+                null,
+                "실제 연구실 생활 적합성",
+                List.of(new NextActionItem(1, "연구실 인턴 지원하기")),
+                "이 리포트는 선택의 정답을 평가하지 않습니다.",
+                OffsetDateTime.of(2026, 11, 2, 21, 30, 0, 0, ZoneOffset.ofHours(9))
+        );
     }
 }
