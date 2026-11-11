@@ -199,7 +199,7 @@ class DecisionServiceTest {
     void resolve_approve_firstTime_generatesDilemmaAndTransitionsToDilemma() throws Exception {
         given(provisionalDecisionRepository.findById(decisionId)).willReturn(Optional.of(decision()));
         given(dilemmaRepository.findBySessionId(sessionId)).willReturn(Optional.empty());
-        DilemmaResult dilemmaResult = new DilemmaResult(1L, DilemmaType.ALT_PATH, "시나리오", "검증 목표", false);
+        DilemmaResult dilemmaResult = new DilemmaResult(1L, DilemmaType.ALT_PATH, "제목", "시나리오", "검증 목표", false);
         given(dilemmaGenerator.generate(sessionId, decisionId)).willReturn(dilemmaResult);
 
         ResolveResponse response = decisionService.resolve(sessionId, decisionId, new ResolveRequest(DecisionAction.APPROVE));
@@ -209,6 +209,7 @@ class DecisionServiceTest {
         verify(reportGenerator, never()).generate(any(), any(), any());
         assertThat(response.state()).isEqualTo(SessionState.DILEMMA);
         assertThat(response.dilemma().dilemmaId()).isEqualTo("1");
+        assertThat(response.dilemma().title()).isEqualTo("제목");
         assertThat(response.dilemma().scenarioText()).isEqualTo("시나리오");
         assertThat(response.reportId()).isNull();
     }
