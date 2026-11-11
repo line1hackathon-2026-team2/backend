@@ -1,6 +1,8 @@
 package com.decisionlab.dilemma.service;
 
 import com.decisionlab.ai.report.ReportGenerator;
+import com.decisionlab.dilemma.dto.DilemmaFollowupRequest;
+import com.decisionlab.dilemma.dto.DilemmaFollowupResponse;
 import com.decisionlab.dilemma.dto.DilemmaRespondRequest;
 import com.decisionlab.dilemma.dto.DilemmaRespondResponse;
 import com.decisionlab.dilemma.entity.Dilemma;
@@ -173,5 +175,78 @@ class DilemmaServiceTest {
                 .isInstanceOf(ApiException.class)
                 .extracting(e -> ((ApiException) e).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    void keepReason_입력_시_유지_이유를_저장하고_리포트_생성_후_REPORT로_전이한다() {
+        DilemmaResponse existing = DilemmaResponse.builder()
+                .dilemmaId(100L)
+                .choice(DilemmaChoice.KEEP)
+                .build();
+        given(dilemmaRepository.findBySessionId(sessionId)).willReturn(Optional.of(dilemma));
+        given(dilemmaResponseRepository.findByDilemmaId(100L)).willReturn(Optional.of(existing));
+        given(reportGenerator.generate(sessionId, ReportType.REPORT, EntryPoint.S07))
+                .willReturn(new ReportResult(
+                        15L, ReportType.REPORT, EntryPoint.S07,
+                        "요약", "초기", "수정", "가치", "상황", "기준", null, "부족 정보",
+                        List.of(), "고지", LocalDateTime.now()
+                ));
+
+        DilemmaFollowupResponse response = dilemmaService.followup(
+                sessionId, new DilemmaFollowupRequest("체계적으로 연구 방법을 배우는 과정이 더 중요해요.", null));
+
+        verify(sessionStateService).requireState(sessionId, SessionState.REFLECTION);
+        assertThat(existing.getKeepReason()).isEqualTo("체계적으로 연구 방법을 배우는 과정이 더 중요해요.");
+        verify(reportGenerator).generate(sessionId, ReportType.REPORT, EntryPoint.S07);
+        verify(sessionStateService).transition(sessionId, SessionState.REPORT);
+        assertThat(response.state()).isEqualTo(SessionState.REPORT);
+        assertThat(response.reportId()).isEqualTo("15");
+        assertThat(response.reconsiderCount()).isNull();
+        assertThat(response.suggestedPersonaCode()).isNull();
+    }
+
+    @Test
+    void shakenValue_입력_시_흔들린_가치를_저장하고_EXPLORING으로_전이하며_추천_자아를_반환한다() {
+        DilemmaResponse existing = DilemmaResponse.builder()
+                .dilemmaId(100L)
+                .choice(DilemmaChoice.RECONSIDER)
+                .build();
+        given(dilemmaRepository.findBySessionId(sessionId)).willReturn(Optional.of(dilemma));
+        given(dilemmaResponseRepository.findByDilemmaId(100L)).willReturn(Optional.of(existing));
+        given(personaSwitchRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)).willReturn(List.of(
+                PersonaSwitch.builder()
+                        .sessionId(sessionId)
+                        .toPersonaCode(PersonaCode.ACHIEVEMENT)
+                        .reason(SwitchReason.USER_SELECT)
+                        .build()
+        ));
+
+        DilemmaFollowupResponse response = dilemmaService.followup(
+                sessionId, new DilemmaFollowupRequest(null, "좋은 기업에서 일할 기회를 포기하는 게 아까워졌어요."));
+
+        verify(sessionStateService).requireState(sessionId, SessionState.RECONSIDER);
+        assertThat(existing.getShakenValue()).isEqualTo("좋은 기업에서 일할 기회를 포기하는 게 아까워졌어요.");
+        verify(sessionStateService).transition(sessionId, SessionState.EXPLORING);
+        assertThat(response.state()).isEqualTo(SessionState.EXPLORING);
+        assertThat(response.reconsiderCount()).isEqualTo(1);
+        assertThat(response.suggestedPersonaCode()).isEqualTo(PersonaCode.STABILITY);
+        assertThat(response.reportId()).isNull();
+    }
+
+    @Test
+    void keepReason과_shakenValue가_모두_없거나_둘_다_있으면_400_VALIDATION_ERROR를_던진다() {
+        assertThatThrownBy(() -> dilemmaService.followup(
+                sessionId, new DilemmaFollowupRequest(null, null)))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).getErrorCode())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR);
+
+        assertThatThrownBy(() -> dilemmaService.followup(
+                sessionId, new DilemmaFollowupRequest("유지 이유", "흔들린 가치")))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).getErrorCode())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR);
+
+        verify(sessionStateService, never()).transition(any(), any());
     }
 }
