@@ -19,6 +19,9 @@ public class AiConfig {
         options.thinkingAdaptive();
         options.effort(OutputConfig.Effort.LOW);
         options.maxTokens(16000);
+        // DefaultLlmClient가 429/5xx 재시도를 직접 담당하므로, SDK 자체의 중복 재시도(기본 2회)는 끈다.
+        // 꺼두지 않으면 앱 재시도(최대 3회) x SDK 재시도(최대 3회) = 최악 9회 호출이 나갈 수 있다.
+        options.maxRetries(0);
         return builder.defaultOptions(options).build();
     }
 }
