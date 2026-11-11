@@ -1,6 +1,8 @@
 package com.decisionlab.dilemma.controller;
 
 import com.decisionlab.chat.message.entity.MessageOption;
+import com.decisionlab.dilemma.dto.DilemmaFollowupRequest;
+import com.decisionlab.dilemma.dto.DilemmaFollowupResponse;
 import com.decisionlab.dilemma.dto.DilemmaRespondRequest;
 import com.decisionlab.dilemma.dto.DilemmaRespondResponse;
 import com.decisionlab.dilemma.entity.DilemmaChoice;
@@ -27,6 +29,7 @@ import java.util.UUID;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -140,5 +143,52 @@ class DilemmaControllerTest {
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RECONSIDER_LIMIT"));
+    }
+
+    @Test
+    void keepReason_입력_시_REPORT_상태와_reportId를_반환한다() throws Exception {
+        when(dilemmaService.followup(sessionId,
+                new DilemmaFollowupRequest("체계적으로 연구 방법을 배우는 과정이 더 중요하다고 생각해요.", null)))
+                .thenReturn(DilemmaFollowupResponse.keep(15L));
+
+        mockMvc.perform(put("/api/v1/sessions/{sessionId}/dilemma/followup", sessionId)
+                        .header("X-Session-Token", validToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "keepReason": "체계적으로 연구 방법을 배우는 과정이 더 중요하다고 생각해요." }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("REPORT"))
+                .andExpect(jsonPath("$.reportId").value("15"));
+    }
+
+    @Test
+    void shakenValue_입력_시_EXPLORING_상태와_reconsiderCount_및_추천_자아를_반환한다() throws Exception {
+        when(dilemmaService.followup(sessionId,
+                new DilemmaFollowupRequest(null, "좋은 기업에서 일할 기회를 포기하는 게 아까워졌어요.")))
+                .thenReturn(DilemmaFollowupResponse.reconsider(1, PersonaCode.STABILITY));
+
+        mockMvc.perform(put("/api/v1/sessions/{sessionId}/dilemma/followup", sessionId)
+                        .header("X-Session-Token", validToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "shakenValue": "좋은 기업에서 일할 기회를 포기하는 게 아까워졌어요." }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("EXPLORING"))
+                .andExpect(jsonPath("$.reconsiderCount").value(1))
+                .andExpect(jsonPath("$.suggestedPersonaCode").value("STABILITY"));
+    }
+
+    @Test
+    void keepReason이_500자를_초과하면_400_VALIDATION_ERROR를_반환한다() throws Exception {
+        String over500 = "가".repeat(501);
+
+        mockMvc.perform(put("/api/v1/sessions/{sessionId}/dilemma/followup", sessionId)
+                        .header("X-Session-Token", validToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"keepReason\": \"" + over500 + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
     }
 }
