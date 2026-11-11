@@ -83,9 +83,10 @@ public class DilemmaService {
                 yield DilemmaRespondResponse.keep(KEEP_PROMPT, KEEP_OPTIONS);
             }
             case RECONSIDER -> {
+                List<MessageOption> options = resolveReconsiderOptions(dilemma);
                 PersonaCode suggestedPersona = suggestNextPersona(sessionId);
                 sessionStateService.transition(sessionId, SessionState.RECONSIDER);
-                yield DilemmaRespondResponse.reconsider(RECONSIDER_PROMPT, RECONSIDER_OPTIONS, suggestedPersona);
+                yield DilemmaRespondResponse.reconsider(RECONSIDER_PROMPT, options, suggestedPersona);
             }
             case UNDECIDED -> {
                 ReportResult reportResult = reportGenerator.generate(
@@ -126,6 +127,15 @@ public class DilemmaService {
         PersonaCode suggestedPersona = suggestNextPersona(sessionId);
         sessionStateService.transition(sessionId, SessionState.EXPLORING);
         return DilemmaFollowupResponse.reconsider(1, suggestedPersona);
+    }
+
+    private List<MessageOption> resolveReconsiderOptions(Dilemma dilemma) {
+        List<MessageOption> stored = dilemma.getShakenValueOptions();
+        if (stored != null && !stored.isEmpty()) {
+            return stored;
+        }
+        dilemma.updateShakenValueOptions(RECONSIDER_OPTIONS);
+        return RECONSIDER_OPTIONS;
     }
 
     private DilemmaResponse getDilemmaResponse(UUID sessionId) {
