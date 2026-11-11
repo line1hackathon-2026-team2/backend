@@ -69,6 +69,27 @@ class CorsConfigTest {
         }
 
         @Test
+        void 프론트_배포_주소를_허용한다() throws Exception {
+            mockMvc.perform(options("/api/v1/sessions")
+                            .header("Origin", "https://decision-lab-flax.vercel.app")
+                            .header("Access-Control-Request-Method", "POST"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Allow-Origin", "https://decision-lab-flax.vercel.app"));
+        }
+
+        @Test
+        void 비슷한_이름의_다른_vercel_주소와_http_주소는_거절한다() throws Exception {
+            for (String origin : new String[]{
+                    "https://decision-lab-flax-evil.vercel.app",
+                    "http://decision-lab-flax.vercel.app"}) {
+                mockMvc.perform(options("/api/v1/sessions")
+                                .header("Origin", origin)
+                                .header("Access-Control-Request-Method", "POST"))
+                        .andExpect(status().isForbidden());
+            }
+        }
+
+        @Test
         void 허용하지_않은_출처의_사전_요청은_거절한다() throws Exception {
             mockMvc.perform(options("/api/v1/sessions")
                             .header("Origin", "https://evil.example.com")
