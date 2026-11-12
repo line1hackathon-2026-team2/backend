@@ -152,9 +152,13 @@ class DecisionServiceTest {
                 .revisionNo(1)
                 .summaryText("요약")
                 .decisionText("대학원 진학")
+                .decisionTextSource(FieldSource.USER_STATED)
                 .coreValue("연구 전문성")
+                .coreValueSource(FieldSource.AI_INFERRED)
                 .reason("연구개발 분야 희망")
+                .reasonSource(FieldSource.USER_STATED)
                 .acceptableCost("취업 시점 지연")
+                .acceptableCostSource(FieldSource.AI_INFERRED)
                 .uncheckedCondition("실제 연구 경험")
                 .build();
         setId(decision, decisionId);
@@ -173,6 +177,30 @@ class DecisionServiceTest {
         assertThat(response.revisionNo()).isEqualTo(1);
         assertThat(response.fields().coreValue()).isEqualTo("경제적 안정");
         assertThat(response.fields().decisionText()).isEqualTo("대학원 진학");
+    }
+
+    @Test
+    void editField_updatesFieldSourceToUserStated() throws Exception {
+        given(provisionalDecisionRepository.findById(decisionId)).willReturn(Optional.of(decision(sessionId)));
+
+        EditFieldResponse response = decisionService.editField(sessionId, decisionId,
+                new EditFieldRequest("coreValue", "경제적 안정"));
+
+        assertThat(response.fieldSources().coreValue()).isEqualTo(FieldSource.USER_STATED);
+        assertThat(response.fieldSources().decisionText()).isEqualTo(FieldSource.USER_STATED);
+        assertThat(response.fieldSources().acceptableCost()).isEqualTo(FieldSource.AI_INFERRED);
+        assertThat(response.fieldSources().uncheckedCondition()).isEqualTo(FieldSource.NEEDS_CHECK);
+    }
+
+    @Test
+    void editField_uncheckedCondition_alwaysStaysNeedsCheck() throws Exception {
+        given(provisionalDecisionRepository.findById(decisionId)).willReturn(Optional.of(decision(sessionId)));
+
+        EditFieldResponse response = decisionService.editField(sessionId, decisionId,
+                new EditFieldRequest("uncheckedCondition", "실제 연구 경험 검증됨"));
+
+        assertThat(response.fields().uncheckedCondition()).isEqualTo("실제 연구 경험 검증됨");
+        assertThat(response.fieldSources().uncheckedCondition()).isEqualTo(FieldSource.NEEDS_CHECK);
     }
 
     @Test
