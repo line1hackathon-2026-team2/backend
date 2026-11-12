@@ -151,7 +151,9 @@ class DecisionControllerTest {
         given(sessionRepository.findBySessionToken("token")).willReturn(Optional.of(session(sessionId)));
         given(decisionService.editField(eq(sessionId), eq(10L), any())).willReturn(new EditFieldResponse(
                 "10", 1,
-                new EditFieldResponse.Fields("대학원 진학", "경제적 안정", "연구개발 분야 희망", "취업 시점 지연", "실제 연구 경험")
+                new Fields("대학원 진학", "경제적 안정", "연구개발 분야 희망", "취업 시점 지연", "실제 연구 경험"),
+                new FieldSources(FieldSource.USER_STATED, FieldSource.USER_STATED,
+                        FieldSource.USER_STATED, FieldSource.AI_INFERRED, FieldSource.NEEDS_CHECK)
         ));
 
         mockMvc.perform(patch("/api/v1/sessions/{sessionId}/decision/{decisionId}", sessionId, 10L)
@@ -164,7 +166,9 @@ class DecisionControllerTest {
                 .andExpect(jsonPath("$.decisionId").value("10"))
                 .andExpect(jsonPath("$.revisionNo").value(1))
                 .andExpect(jsonPath("$.fields.coreValue").value("경제적 안정"))
-                .andExpect(jsonPath("$.fields.decisionText").value("대학원 진학"));
+                .andExpect(jsonPath("$.fields.decisionText").value("대학원 진학"))
+                .andExpect(jsonPath("$.fieldSources.coreValue").value("USER_STATED"))
+                .andExpect(jsonPath("$.fieldSources.uncheckedCondition").value("NEEDS_CHECK"));
     }
 
     @Test

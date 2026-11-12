@@ -99,13 +99,27 @@ public class ProvisionalDecision extends BaseTimeEntity {
     /**
      * #9 필드 단위 수정(PATCH). revisionNo는 올리지 않고 같은 리비전의 값만 덮어쓴다.
      * field는 서비스에서 이미 검증된 값(decisionText/coreValue/reason/acceptableCost/uncheckedCondition)만 들어온다.
+     * 사용자가 직접 고친 필드의 source는 USER_STATED로 갱신한다. uncheckedCondition은 "검증 여부" 플래그라
+     * 별도 source 컬럼이 없고 항상 NEEDS_CHECK이므로 대상에서 제외한다.
      */
     public void updateField(String field, String value) {
         switch (field) {
-            case "decisionText" -> this.decisionText = value;
-            case "coreValue" -> this.coreValue = value;
-            case "reason" -> this.reason = value;
-            case "acceptableCost" -> this.acceptableCost = value;
+            case "decisionText" -> {
+                this.decisionText = value;
+                this.decisionTextSource = FieldSource.USER_STATED;
+            }
+            case "coreValue" -> {
+                this.coreValue = value;
+                this.coreValueSource = FieldSource.USER_STATED;
+            }
+            case "reason" -> {
+                this.reason = value;
+                this.reasonSource = FieldSource.USER_STATED;
+            }
+            case "acceptableCost" -> {
+                this.acceptableCost = value;
+                this.acceptableCostSource = FieldSource.USER_STATED;
+            }
             case "uncheckedCondition" -> this.uncheckedCondition = value;
             default -> throw new IllegalArgumentException("알 수 없는 필드: " + field);
         }
