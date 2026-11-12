@@ -41,14 +41,30 @@ public class ProvisionalDecision extends BaseTimeEntity {
     @Column(name = "decision_text", length = 200)
     private String decisionText;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "decision_text_source", length = 20)
+    private FieldSource decisionTextSource;
+
     @Column(name = "core_value", length = 200)
     private String coreValue;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "core_value_source", length = 20)
+    private FieldSource coreValueSource;
 
     @Column(name = "reason", length = 500)
     private String reason;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reason_source", length = 20)
+    private FieldSource reasonSource;
+
     @Column(name = "acceptable_cost", length = 500)
     private String acceptableCost;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "acceptable_cost_source", length = 20)
+    private FieldSource acceptableCostSource;
 
     @Column(name = "unchecked_condition", length = 500)
     private String uncheckedCondition;
@@ -59,18 +75,39 @@ public class ProvisionalDecision extends BaseTimeEntity {
 
     @Builder
     public ProvisionalDecision(UUID sessionId, Integer revisionNo, String summaryText, String decisionText,
-                                String coreValue, String reason, String acceptableCost, String uncheckedCondition) {
+                                FieldSource decisionTextSource, String coreValue, FieldSource coreValueSource,
+                                String reason, FieldSource reasonSource, String acceptableCost,
+                                FieldSource acceptableCostSource, String uncheckedCondition) {
         this.sessionId = sessionId;
         this.revisionNo = revisionNo;
         this.summaryText = summaryText;
         this.decisionText = decisionText;
+        this.decisionTextSource = decisionTextSource;
         this.coreValue = coreValue;
+        this.coreValueSource = coreValueSource;
         this.reason = reason;
+        this.reasonSource = reasonSource;
         this.acceptableCost = acceptableCost;
+        this.acceptableCostSource = acceptableCostSource;
         this.uncheckedCondition = uncheckedCondition;
     }
 
     public void resolve(DecisionAction action) {
         this.resolvedAction = action;
+    }
+
+    /**
+     * #9 필드 단위 수정(PATCH). revisionNo는 올리지 않고 같은 리비전의 값만 덮어쓴다.
+     * field는 서비스에서 이미 검증된 값(decisionText/coreValue/reason/acceptableCost/uncheckedCondition)만 들어온다.
+     */
+    public void updateField(String field, String value) {
+        switch (field) {
+            case "decisionText" -> this.decisionText = value;
+            case "coreValue" -> this.coreValue = value;
+            case "reason" -> this.reason = value;
+            case "acceptableCost" -> this.acceptableCost = value;
+            case "uncheckedCondition" -> this.uncheckedCondition = value;
+            default -> throw new IllegalArgumentException("알 수 없는 필드: " + field);
+        }
     }
 }
