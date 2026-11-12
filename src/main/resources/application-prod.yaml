@@ -1,4 +1,4 @@
 decisionlab:
   cors:
-    # 배포 프론트 주소.
-    allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS:}
+    # 배포 프론트 주소. 서버 환경변수 CORS_ALLOWED_ORIGINS로 바꿀 수 있다 (여러 개면 쉼표로 구분)
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS:https://decision-lab-flax.vercel.app}
