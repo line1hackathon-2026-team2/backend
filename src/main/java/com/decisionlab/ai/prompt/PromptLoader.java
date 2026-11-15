@@ -33,10 +33,18 @@ public class PromptLoader {
     private String readPrompt(String promptKey) {
         String path = "prompts/" + promptKey + ".txt";
         try (InputStream in = new ClassPathResource(path).getInputStream()) {
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            String raw = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            return stripComments(raw);
         } catch (IOException e) {
             throw new UncheckedIOException("프롬프트 파일을 읽을 수 없습니다: " + path, e);
         }
+    }
+
+    /** "#"으로 시작하는 줄(근거/메모용 주석)은 LLM에 보내지 않는다. */
+    private String stripComments(String text) {
+        return text.lines()
+                .filter(line -> !line.stripLeading().startsWith("#"))
+                .collect(java.util.stream.Collectors.joining("\n"));
     }
 
     private String substitute(String template, Map<String, Object> variables) {

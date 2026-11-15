@@ -1,12 +1,17 @@
 package com.decisionlab.ai.conversation;
 
 import com.decisionlab.ai.llm.LlmClient;
+import com.decisionlab.chat.decision.entity.FieldSource;
+import com.decisionlab.chat.decision.entity.ProvisionalDecision;
+import com.decisionlab.chat.decision.repository.ProvisionalDecisionRepository;
 import com.decisionlab.chat.message.dto.AiMessage;
 import com.decisionlab.chat.message.dto.AiMessageTurn;
 import com.decisionlab.chat.message.entity.InputType;
 import com.decisionlab.chat.message.entity.Message;
 import com.decisionlab.chat.message.entity.MessageRole;
 import com.decisionlab.chat.message.repository.MessageRepository;
+import com.decisionlab.concern.entity.Concern;
+import com.decisionlab.concern.entity.ConcernType;
 import com.decisionlab.concern.repository.ConcernRepository;
 import com.decisionlab.persona.entity.Persona;
 import com.decisionlab.persona.entity.PersonaCode;
@@ -42,6 +47,9 @@ class LlmConversationEngineTest {
     PersonaRepository personaRepository;
 
     @Mock
+    ProvisionalDecisionRepository provisionalDecisionRepository;
+
+    @Mock
     LlmClient llmClient;
 
     LlmConversationEngine engine;
@@ -50,7 +58,8 @@ class LlmConversationEngineTest {
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
-        engine = new LlmConversationEngine(messageRepository, concernRepository, personaRepository, llmClient);
+        engine = new LlmConversationEngine(
+                messageRepository, concernRepository, personaRepository, provisionalDecisionRepository, llmClient);
     }
 
     private Persona persona(PersonaCode code, String name, String coreValue) {
@@ -96,6 +105,8 @@ class LlmConversationEngineTest {
         assertThat(captor.getValue().get("persona_name")).isEqualTo("성취의 나");
         assertThat(captor.getValue().get("core_value")).isEqualTo("성장, 목표, 역량");
         assertThat(captor.getValue().get("context").toString()).contains("첫 대화");
+        assertThat(captor.getValue().get("current_stage")).isEqualTo("1. 선택지 확인");
+        assertThat(captor.getValue().get("confirmed")).isEqualTo("아직 확인된 내용 없음");
 
         assertThat(result.content()).isEqualTo("질문");
         assertThat(result.options()).hasSize(2);
@@ -167,6 +178,47 @@ class LlmConversationEngineTest {
 
         assertThat(result.options()).hasSize(3);
         assertThat(result.options().get(2).optionId()).isEqualTo("o3");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void respond_resolvesCurrentStage_fromConcernAndLatestDecision() {
+        given(messageRepository.findBySessionIdOrderByTurnNoAsc(sessionId)).willReturn(List.of());
+        given(personaRepository.findByCode(PersonaCode.ACHIEVEMENT))
+                .willReturn(Optional.of(persona(PersonaCode.ACHIEVEMENT, "성취의 나", "성장, 목표, 역량")));
+        given(concernRepository.findBySessionId(sessionId)).willReturn(Optional.of(
+                Concern.builder()
+                        .sessionId(sessionId)
+                        .freeText("대학원이냐 취업이냐")
+                        .concernType(ConcernType.CAREER)
+                        .options(List.of("대학원", "취업"))
+                        .initialPreference("대학원")
+                        .build()));
+        ProvisionalDecision decision = ProvisionalDecision.builder()
+                .sessionId(sessionId)
+                .revisionNo(1)
+                .summaryText("요약")
+                .decisionText("대학원")
+                .decisionTextSource(FieldSource.USER_STATED)
+                .coreValue("역량 성장")
+                .coreValueSource(FieldSource.AI_INFERRED)
+                .build();
+        given(provisionalDecisionRepository.findBySessionIdOrderByRevisionNoDesc(sessionId))
+                .willReturn(List.of(decision));
+        given(llmClient.call(eq("conversation/achievement"), any(), eq(LlmConversationEngine.ConversationTurn.class)))
+                .willReturn(new LlmConversationEngine.ConversationTurn("질문", List.of("보기1")));
+        given(messageRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+        engine.respond(sessionId, PersonaCode.ACHIEVEMENT, "답변");
+
+        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+        verify(llmClient).call(eq("conversation/achievement"), captor.capture(), any());
+        // 선택지·기운 쪽·핵심 가치까지는 채워졌으니 다음 빈 단계인 "4. 이유"로 넘어가야 한다.
+        assertThat(captor.getValue().get("current_stage")).isEqualTo("4. 이유");
+        String confirmed = captor.getValue().get("confirmed").toString();
+        assertThat(confirmed).contains("선택지 확인: 대학원 / 취업");
+        assertThat(confirmed).contains("기운 쪽 확인: 대학원");
+        assertThat(confirmed).contains("핵심 가치: 역량 성장");
     }
 
     @Test
