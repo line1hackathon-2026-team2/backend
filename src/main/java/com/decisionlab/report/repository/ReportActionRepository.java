@@ -8,4 +8,6 @@ import java.util.List;
 public interface ReportActionRepository extends JpaRepository<ReportAction, Long> {
 
     List<ReportAction> findByReportIdOrderBySeqAsc(Long reportId);
+
+    void deleteByReportId(Long reportId);
 }

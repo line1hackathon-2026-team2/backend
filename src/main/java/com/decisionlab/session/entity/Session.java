@@ -37,6 +37,11 @@ public class Session extends BaseTimeEntity {
     @Column(name = "state", nullable = false, length = 30)
     private SessionState state;
 
+    /** #17 이어하기 코드 (XXXX-9999). 저장(SAVE)할 때마다 새 코드로 교체되고, 이어하기 후에도 다음 SAVE 전까지 남아 있다. */
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "resume_code", unique = true, length = 9)
+    private String resumeCode;
+
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
@@ -51,6 +56,17 @@ public class Session extends BaseTimeEntity {
     }
 
     public void renewExpiry(LocalDateTime newExpiresAt) {
+        this.expiresAt = newExpiresAt;
+    }
+
+    /** SAVE 시 새 이어하기 코드로 교체한다. 이전 코드는 이때 더 이상 쓸 수 없게 된다. */
+    public void assignResumeCode(String resumeCode) {
+        this.resumeCode = resumeCode;
+    }
+
+    /** 이어하기 시 새 토큰으로 교체한다. 토큰은 세션당 하나라 이전 기기의 토큰은 자동으로 끊긴다. */
+    public void rotateToken(String newToken, LocalDateTime newExpiresAt) {
+        this.sessionToken = newToken;
         this.expiresAt = newExpiresAt;
     }
 

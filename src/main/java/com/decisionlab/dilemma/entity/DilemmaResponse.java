@@ -44,4 +44,16 @@ public class DilemmaResponse extends BaseTimeEntity {
         this.keepReason = keepReason;
         this.shakenValue = shakenValue;
     }
+
+    public void updateChoice(DilemmaChoice choice) {
+        this.choice = choice;
+    }
+
+    public void updateKeepReason(String keepReason) {
+        this.keepReason = keepReason;
+    }
+
+    public void updateShakenValue(String shakenValue) {
+        this.shakenValue = shakenValue;
+    }
 }

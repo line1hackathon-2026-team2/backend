@@ -1,0 +1,15 @@
+[Unit]
+Description=decisionlab Spring Boot app
+After=network.target
+
+[Service]
+User=ec2-user
+WorkingDirectory=/opt/decisionlab
+EnvironmentFile=/opt/decisionlab/app.env
+ExecStart=/usr/bin/java -jar /opt/decisionlab/app.jar
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

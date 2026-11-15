@@ -1,3 +1,11 @@
 spring:
   application:
     name: decisionlab
+
+decisionlab:
+  session:
+    ttl: 7d
+  cors:
+    # 로컬 개발(포트 무관, Vite 5173 / Next·CRA 3000 등) + 프론트 배포 주소
+    # 배포 서버는 아직 prod 프로필 없이 실행되므로, 배포 주소도 여기에 함께 둔다
+    allowed-origin-patterns: http://localhost:[*],http://127.0.0.1:[*],https://decision-lab-flax.vercel.app

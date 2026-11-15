@@ -3,7 +3,7 @@
 서로 다른 가치관을 가진 AI 자아(성취·안정·탐색)와 대화하고, 가상 딜레마로 자신의 판단을 검증한 뒤, 판단 변화를 의사결정 리포트로 기록하는 서비스의 백엔드입니다.
 
 - ERD: https://dbdiagram.io/d/decision_lab-6ae87bf2c7dad92865eae4c0
-- API 명세서: `docs/api-spec.md`
+- API 명세서: `docs/api_spec.md`
 
 ## 기술 스택
 
@@ -110,9 +110,9 @@ implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
 
 | 담당 | 책임 영역 | 테이블 | API (명세서 번호) | AI 모듈 |
 |---|---|---|---|---|
-| **A** | 세션·상태 전이·인증·공통 | sessions, concerns, personas, persona_switches | #1 #2 #3 #4 #5 #12 (P1: #14) | 없음 (B의 모듈을 호출) |
-| **B** | 1:1 대화, 잠정 결정, LLM 공통 래퍼 | messages, judgment_criteria, provisional_decisions | #6 #7 #8 #9 | Conversation Engine, Decision Extractor |
-| **C** | 딜레마, 사후 분기, 리포트 | dilemmas, dilemma_templates, dilemma_responses, reports, report_actions | #10 #11 #13 | Dilemma Generator, Report Generator |
+| **A** | 세션·상태 전이·인증·공통 | sessions, concerns, personas, persona_switches | #1 #2 #3 #4 #5 #13 (P1: #16 #17) | 없음 (B의 모듈을 호출) |
+| **B** | 1:1 대화, 잠정 결정, LLM 공통 래퍼 | messages, judgment_criteria, provisional_decisions | #6 #7 #8 #10 (P1: #9) | Conversation Engine, Decision Extractor |
+| **C** | 딜레마, 사후 분기, 리포트 | dilemmas, dilemma_templates, dilemma_responses, reports, report_actions | #11 #12 #14 (P1: #15) | Dilemma Generator, Report Generator |
 
 ### A: 세션 · 상태 전이 · 공통
 
@@ -123,8 +123,9 @@ implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
 | 3 | PUT | `/sessions/{id}/concern` | S02 | CREATED → CREATED | 덮어쓰기 가능 |
 | 4 | GET | `/personas` | S03 | - | 시드 데이터 조회 |
 | 5 | POST | `/sessions/{id}/persona` | S03, O1, S08 | CREATED → EXPLORING / EXPLORING → EXPLORING | B의 Conversation Engine 호출 (첫 질문 + handoff 요약) |
-| 12 | POST | `/sessions/{id}/end` | O2 | EXPLORING → REPORT / PAUSED | INCOMPLETE는 C의 Report Generator 호출 |
-| 14 | POST | `/sessions/resume` | S01, S10 | PAUSED → 이전 상태 | P1 |
+| 13 | POST | `/sessions/{id}/end` | O2 | EXPLORING → REPORT / PAUSED | INCOMPLETE는 C의 Report Generator 호출 |
+| 16 | POST | `/sessions/{id}/reopen` | S09, S09-U, S09-I | REPORT → EXPLORING | P1, 리포트에서 대화 재개 |
+| 17 | POST | `/sessions/resume` | S01, S10 | PAUSED → 이전 상태 | P1 |
 
 공통 산출물 (B, C가 사용)
 - `SessionState` enum, `ErrorCode` enum, `ApiException`, `GlobalExceptionHandler`
@@ -141,7 +142,8 @@ implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
 | 6 | POST | `/sessions/{id}/messages` | S04 | EXPLORING → EXPLORING | Conversation Engine |
 | 7 | GET | `/sessions/{id}/messages` | S04 | - | - |
 | 8 | POST | `/sessions/{id}/decision/draft` | S04→S05 | EXPLORING → PROVISIONAL_DECISION | Decision Extractor |
-| 9 | POST | `/sessions/{id}/decision/{decisionId}/resolve` | S05 | APPROVE → DILEMMA / REVISE → EXPLORING / UNDECIDED → REPORT | APPROVE 시 C의 Dilemma Generator, UNDECIDED 시 C의 Report Generator |
+| 9 | PATCH | `/sessions/{id}/decision/{decisionId}` | S05 | PROVISIONAL_DECISION → PROVISIONAL_DECISION | P1, 필드 단위 수정(연필 아이콘), `revisionNo` 유지·`summaryText` 재생성 안 함 |
+| 10 | POST | `/sessions/{id}/decision/{decisionId}/resolve` | S05 | APPROVE → DILEMMA / REVISE → EXPLORING / UNDECIDED → REPORT | APPROVE 시 C의 Dilemma Generator, UNDECIDED 시 C의 Report Generator |
 
 공통 산출물 (A, C가 사용)
 - `LlmClient` 래퍼: Spring AI `ChatClient` 감싸기, 타임아웃 30초, 재시도 최대 2회, JSON 스키마 파싱 실패 처리 → 실패 시 `LLM_FAILED`
@@ -156,13 +158,14 @@ AI 규칙
 
 | # | Method | Path | 화면 | 상태 전이 | 호출하는 AI 모듈 |
 |---|---|---|---|---|---|
-| 10 | POST | `/sessions/{id}/dilemma/respond` | S06 | KEEP → REFLECTION / RECONSIDER → RECONSIDER / UNDECIDED → REPORT | UNDECIDED 시 Report Generator |
-| 11 | PUT | `/sessions/{id}/dilemma/followup` | S07, S08 | REFLECTION → REPORT / RECONSIDER → EXPLORING | KEEP 시 Report Generator |
-| 13 | GET | `/sessions/{id}/report` | S09 | - | - |
+| 11 | POST | `/sessions/{id}/dilemma/respond` | S06, S07 | KEEP → REFLECTION / RECONSIDER → RECONSIDER / UNDECIDED → REPORT | UNDECIDED 시 Report Generator |
+| 12 | PUT | `/sessions/{id}/dilemma/followup` | S07, S08 | REFLECTION → REPORT / RECONSIDER → EXPLORING | KEEP 시 Report Generator |
+| 14 | GET | `/sessions/{id}/report` | S09 | - | - |
+| 15 | GET | `/reports/{reportId}` | S09, S09-U, S09-I, S10 | - | P1, 세션 토큰 없이 공개 조회(영구 링크) |
 
 공통 산출물 (A, B가 사용)
-- `DilemmaGenerator.generate(sessionId, decisionId)`: B의 #9(APPROVE)가 호출
-- `ReportGenerator.generate(sessionId, reportType, entryPoint)`: A의 #12, B의 #9(UNDECIDED)가 호출
+- `DilemmaGenerator.generate(sessionId, decisionId)`: B의 #10(APPROVE)가 호출
+- `ReportGenerator.generate(sessionId, reportType, entryPoint)`: A의 #13, B의 #10(UNDECIDED)가 호출
 - `dilemma_templates` 시드 데이터 (4유형, 폴백용)
 
 AI 규칙
@@ -188,7 +191,7 @@ interface ConversationEngine {
 
 // C 제공
 interface DilemmaGenerator {
-    DilemmaResult generate(UUID sessionId, Long decisionId);   // B의 #9가 호출
+    DilemmaResult generate(UUID sessionId, Long decisionId);   // B의 #10이 호출
 }
 interface ReportGenerator {
     ReportResult generate(UUID sessionId, ReportType type, EntryPoint entry); // A, B, C가 호출
@@ -205,9 +208,9 @@ interface ReportGenerator {
 | API | 담당 | 내부에서 호출하는 타 담당 기능 |
 |---|---|---|
 | #5 persona | A | B `ConversationEngine.open`, `createHandoffSummary` |
-| #9 resolve (APPROVE) | B | C `DilemmaGenerator.generate` |
-| #9 resolve (UNDECIDED) | B | C `ReportGenerator.generate(UNDECIDED_REPORT)` |
-| #12 end (INCOMPLETE) | A | C `ReportGenerator.generate(INCOMPLETE_REPORT)` |
+| #10 resolve (APPROVE) | B | C `DilemmaGenerator.generate` |
+| #10 resolve (UNDECIDED) | B | C `ReportGenerator.generate(UNDECIDED_REPORT)` |
+| #13 end (INCOMPLETE) | A | C `ReportGenerator.generate(INCOMPLETE_REPORT)` |
 | 전체 | A, B, C | A `SessionStateService` (상태 검증/전이) |
 | #6, #8 등 LLM 호출 | A 제외 | B `LlmClient` |
 | #2 세션 조회 | A | B/C 테이블 읽기 (결정, 딜레마, 리포트 id) |
@@ -218,8 +221,8 @@ interface ReportGenerator {
 |---|---|---|---|---|
 | 0. 합의 | 1일 | 인터페이스/DTO/enum 합의 | ← | ← |
 | 1. 기반 | 1~2일 | 엔티티 + DDL 전체, 공통 에러/인증/상태 서비스, personas 시드 | 프로젝트 생성·푸시(가장 먼저), `LlmClient` 래퍼, 프롬프트 로딩 | 인터페이스 + 가짜 구현체, 템플릿 시드 |
-| 2. 기능 | 3~5일 | #1~#5 | #6~#9 | #10, #11, #13 |
-| 3. 연동 | 마지막 | #12, 가짜 구현체를 실제 구현으로 교체 | ← | ← |
+| 2. 기능 | 3~5일 | #1~#5 | #6~#10 | #11, #12, #14 |
+| 3. 연동 | 마지막 | #13, 가짜 구현체를 실제 구현으로 교체 | ← | ← |
 | 4. 통합 테스트 | 마지막 | 세션 생성 → 리포트까지 전체 플로우, 리포트 3유형 모두 | ← | ← |
 
 > C의 병목: 딜레마 생성에 필요한 B의 결정/기준 데이터는 가짜 데이터를 DB에 직접 넣어서 먼저 개발한다.
@@ -344,7 +347,7 @@ PR 템플릿은 `.github/pull_request_template.md`에 있다.
 | 항목 | 결정 | 담당 |
 |---|---|---|
 | 재검토(RECONSIDER) 후 딜레마 | 딜레마는 **세션당 1개**. 재검토 후 대화로 돌아가 새 잠정 결정을 APPROVE하면 딜레마를 다시 만들지 않고 **바로 REPORT 생성**. 유지 이유 입력(S07)은 생략하고, `initialView`=첫 잠정 결정, `revisedView`=재승인 결정, `shakingSituation`=기존 딜레마로 채운다. 재검토 후 UNDECIDED는 UNDECIDED_REPORT. | B, C |
-| 재검토 상태 전이 | `reconsiderCount >= 1`인 세션에서 `PROVISIONAL_DECISION --APPROVE--> REPORT` (API 명세 4.9, 상태 전이 표에 반영) | B |
+| 재검토 상태 전이 | `reconsiderCount >= 1`인 세션에서 `PROVISIONAL_DECISION --APPROVE--> REPORT` (API 명세 4.10, 상태 전이 표에 반영) | B |
 | 재검토 한도 | RECONSIDER는 딜레마 응답(S06)에서만 가능하고 딜레마가 1회뿐이라 자연히 1회로 제한. `RECONSIDER_LIMIT`(409)은 방어용으로 유지 | C |
 | `concernType` | `CAREER`(취업·대학원 등 진로), `MAJOR`(전공·학업), `LEAVE`(휴학·시기), `OTHER` | A |
 | `freeText` 길이 | 1~1000자 | A |
@@ -355,3 +358,6 @@ PR 템플릿은 `.github/pull_request_template.md`에 있다.
 | LLM | Anthropic Claude `claude-sonnet-5-5`, Spring AI Anthropic 스타터 | B |
 | API 키 | 개발자 각자 개발용 키(환경변수), 배포 서버 키는 A가 별도 발급해 서버 환경변수로 관리 | A |
 | 스키마 변경 절차 | Flyway 새 버전 파일 추가 + 3명 전원 리뷰 | A |
+| 잠정 결정 필드 수정 (P1) | S05에서 연필 아이콘으로 필드 단위 수정 가능(#9, PATCH). `revisionNo`는 유지하고 `summaryText`는 재생성하지 않음 | B |
+| 리포트 영구 저장 | 별도 저장 API나 스냅샷 테이블 없음. #14가 돌려준 `reportId`가 곧 영구 링크(#15)이고 `X-Session-Token` 없이 조회 가능. 재개 후 리포트가 갱신되면 이 링크의 내용도 함께 바뀜(스냅샷 고정 아님) | C |
+| 리포트에서 대화 재개 (P1) | S09/S09-U/S09-I에서 `POST reopen`(#16)으로 EXPLORING 복귀. 기존 딜레마 유무에 따라 이후 흐름이 갈림 | A |
