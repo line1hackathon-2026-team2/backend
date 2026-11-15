@@ -38,3 +38,7 @@ out/
 
 ### Local secrets ###
 application-local.yml
+dsc_key.pem
+icacls
+ssh
+*.pem
