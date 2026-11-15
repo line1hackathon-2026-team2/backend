@@ -1,6 +1,8 @@
 package com.decisionlab.ai.conversation;
 
 import com.decisionlab.ai.llm.LlmClient;
+import com.decisionlab.chat.decision.entity.ProvisionalDecision;
+import com.decisionlab.chat.decision.repository.ProvisionalDecisionRepository;
 import com.decisionlab.chat.message.dto.AiMessage;
 import com.decisionlab.chat.message.dto.AiMessageTurn;
 import com.decisionlab.chat.message.entity.InputType;
@@ -16,6 +18,7 @@ import com.decisionlab.persona.repository.PersonaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,11 +35,16 @@ public class LlmConversationEngine implements ConversationEngine {
     private static final int HANDOFF_HISTORY_TURNS = 4;
     // 명세서 4.6: 선택지는 2~3개. 프롬프트로만 강제하지 않고 코드에서도 상한을 둔다.
     private static final int MAX_OPTIONS = 3;
+    // 대화가 채워 나가는 6단계. common.txt에 적힌 단계 순서와 반드시 맞춘다.
+    private static final String[] STAGE_NAMES = {
+            "선택지 확인", "기운 쪽 확인", "핵심 가치", "이유", "감수할 비용", "확인 안 된 조건"
+    };
 
     private final MessageRepository messageRepository;
-    // A의 테이블은 읽기만 한다 (고민 내용, 자아 이름/핵심 가치 조회)
+    // A/B의 테이블은 읽기만 한다 (고민 내용·선택지/기운 쪽, 잠정 결정 필드, 자아 이름/핵심 가치 조회)
     private final ConcernRepository concernRepository;
     private final PersonaRepository personaRepository;
+    private final ProvisionalDecisionRepository provisionalDecisionRepository;
     private final LlmClient llmClient;
 
     @Override
@@ -79,12 +87,15 @@ public class LlmConversationEngine implements ConversationEngine {
     private Message generateAndSave(UUID sessionId, PersonaCode code, String context) {
         Persona persona = personaRepository.findByCode(code)
                 .orElseThrow(() -> new IllegalStateException("persona 시드가 없습니다: " + code));
+        StageProgress stage = resolveStageProgress(sessionId);
 
         Map<String, Object> variables = new HashMap<>();
         variables.put("persona_name", persona.getName());
         variables.put("core_value", persona.getCoreValue());
         variables.put("concern", concernText(sessionId));
         variables.put("context", context);
+        variables.put("current_stage", stage.currentStageLabel());
+        variables.put("confirmed", stage.confirmedText());
 
         ConversationTurn turn = llmClient.call(
                 "conversation/" + code.name().toLowerCase(), variables, ConversationTurn.class);
@@ -107,6 +118,45 @@ public class LlmConversationEngine implements ConversationEngine {
             options.add(new MessageOption("o" + (i + 1), labels.get(i)));
         }
         return options;
+    }
+
+    /**
+     * 선택지(1단계)·기운 쪽(2단계)은 Concern에서, 핵심 가치~확인 안 된 조건(3~6단계)은
+     * ProvisionalDecision의 최신 리비전에서 읽어 아직 비어 있는 가장 앞 단계를 current_stage로,
+     * 채워진 항목을 confirmed로 만든다. 모든 단계가 채워져 있으면 마지막 단계를 유지한다.
+     */
+    private StageProgress resolveStageProgress(UUID sessionId) {
+        Concern concern = concernRepository.findBySessionId(sessionId).orElse(null);
+        ProvisionalDecision decision = provisionalDecisionRepository
+                .findBySessionIdOrderByRevisionNoDesc(sessionId)
+                .stream().findFirst().orElse(null);
+
+        String[] values = new String[STAGE_NAMES.length];
+        values[0] = (concern != null && concern.getOptions() != null && !concern.getOptions().isEmpty())
+                ? String.join(" / ", concern.getOptions())
+                : null;
+        values[1] = concern != null ? concern.getInitialPreference() : null;
+        values[2] = decision != null ? decision.getCoreValue() : null;
+        values[3] = decision != null ? decision.getReason() : null;
+        values[4] = decision != null ? decision.getAcceptableCost() : null;
+        values[5] = decision != null ? decision.getUncheckedCondition() : null;
+
+        StringBuilder confirmed = new StringBuilder();
+        int stageIndex = values.length - 1;
+        for (int i = 0; i < values.length; i++) {
+            if (StringUtils.hasText(values[i])) {
+                confirmed.append("- ").append(STAGE_NAMES[i]).append(": ").append(values[i]).append('\n');
+            } else if (stageIndex == values.length - 1) {
+                stageIndex = i;
+            }
+        }
+
+        String currentStageLabel = (stageIndex + 1) + ". " + STAGE_NAMES[stageIndex];
+        String confirmedText = confirmed.length() == 0 ? "아직 확인된 내용 없음" : confirmed.toString().strip();
+        return new StageProgress(currentStageLabel, confirmedText);
+    }
+
+    private record StageProgress(String currentStageLabel, String confirmedText) {
     }
 
     private String concernText(UUID sessionId) {
